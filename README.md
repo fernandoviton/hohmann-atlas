@@ -6,6 +6,14 @@ Planetary-tour mission planner using real orbital mechanics. Computes Hohmann tr
 
 ```bash
 cd backend
+python -m venv .venv
+
+# Activate the venv
+# Linux/macOS/Windows (bash):
+source .venv/bin/activate
+# Windows (cmd/PowerShell):
+.venv\Scripts\activate
+
 pip install -e ".[dev]"
 ```
 
