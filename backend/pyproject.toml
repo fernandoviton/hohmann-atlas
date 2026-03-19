@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hohmann-atlas"
+version = "0.1.0"
+description = "Planetary-tour mission planner using real orbital mechanics"
+requires-python = ">=3.11"
+dependencies = [
+    "astropy>=6.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+hohmann-atlas = "app.cli:main"
