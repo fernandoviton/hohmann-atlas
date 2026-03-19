@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.poliastro.space)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:orbital-mechanics.space)",
+      "WebFetch(domain:www.planetary.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.jpl.nasa.gov)",
+      "WebFetch(domain:pypi.org)",
+      "WebSearch",
+      "WebFetch(domain:docs.astropy.org)",
+      "WebFetch(domain:en.m.wikipedia.org)",
+      "WebFetch(domain:www.omnicalculator.com)",
+      "WebFetch(domain:spacecalcs.com)",
+      "WebFetch(domain:ai-solutions.com)",
+      "Bash(python:*)",
+      "Bash(where python:*)",
+      "Bash(where py:*)"
+    ]
+  }
+}
