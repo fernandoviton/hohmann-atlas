@@ -76,13 +76,26 @@ This creates a resource group, container registry, and container app, then print
 
 ### GitHub repository secrets
 
-Set these in Settings > Secrets and variables > Actions:
+Set these in Settings > Secrets and variables > Actions > **Repository secrets**:
 
 | Secret | Value |
 |---|---|
-| `AZURE_CREDENTIALS` | JSON from `az ad sp create-for-rbac --name hohmann-atlas-ci --role contributor --scopes /subscriptions/<sub-id>/resourceGroups/hohmann-atlas-rg --sdk-auth` |
+| `AZURE_CREDENTIALS` | See below |
 | `ACR_NAME` | Container registry name (e.g. `hohmannatlas`) |
 | `API_URL` | Azure Container App FQDN with `https://` prefix |
+
+To create `AZURE_CREDENTIALS`, run the command printed by `setup.sh` (or see below). The output will have `appId`, `password`, and `tenant` keys — reshape into this format for the secret:
+
+```json
+{
+  "clientId": "<appId>",
+  "clientSecret": "<password>",
+  "tenantId": "<tenant>",
+  "subscriptionId": "<your subscription id>"
+}
+```
+
+> **Git Bash users**: prefix az commands containing `/subscriptions/...` paths with `MSYS_NO_PATHCONV=1` to prevent path mangling.
 
 ### GitHub Pages
 
@@ -90,9 +103,8 @@ Enable in Settings > Pages > Source: **GitHub Actions**.
 
 ### How it works
 
-- **`ci.yml`** — runs `pytest` on every push and PR to `main`
-- **`deploy-backend.yml`** — on changes to `backend/`, builds the Docker image in ACR and updates the container app
-- **`deploy-frontend.yml`** — on changes to `frontend/`, injects the `API_URL` into `index.html` and deploys to GitHub Pages
+- **`deploy-backend.yml`** — on pushes to `main` touching `backend/`, runs pytest then builds the Docker image in ACR and updates the container app
+- **`deploy-frontend.yml`** — on pushes to `main` touching `frontend/`, injects the `API_URL` into `index.html` and deploys to GitHub Pages
 
 ### Docker (manual)
 
