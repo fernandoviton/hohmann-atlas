@@ -19,7 +19,7 @@ LOCATION="westus"
 ACR_NAME="hohmannatlas"
 ENVIRONMENT_NAME="hohmann-atlas-env"
 APP_NAME="hohmann-atlas-api"
-GH_PAGES_URL="https://$(git remote get-url origin | sed -E 's|.*github.com[:/]([^/]+)/([^/.]+).*|\1.github.io/\2|')"
+GH_PAGES_URL="https://$(git remote get-url origin | sed -E 's|.*github.com[:/]([^/]+)/([^/.]+).*|\1.github.io|')"
 
 echo "==> Creating resource group: $RESOURCE_GROUP"
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION"

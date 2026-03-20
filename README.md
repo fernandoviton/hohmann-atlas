@@ -1,5 +1,7 @@
 # Hohmann Atlas
 
+**Live demo**: https://fernandoviton.github.io/hohmann-atlas
+
 Planetary-tour mission planner using real orbital mechanics. Computes Hohmann transfer orbits between any two planets in the solar system, including delta-v budgets, transfer times, and launch window (synodic) periods.
 
 ## Install
@@ -96,6 +98,14 @@ To create `AZURE_CREDENTIALS`, run the command printed by `setup.sh` (or see bel
 ```
 
 > **Git Bash users**: prefix az commands containing `/subscriptions/...` paths with `MSYS_NO_PATHCONV=1` to prevent path mangling.
+
+### CORS
+
+The backend needs to allow requests from your GitHub Pages origin. `setup.sh` sets this automatically, but if you need to update it:
+
+```bash
+MSYS_NO_PATHCONV=1 az containerapp update --name hohmann-atlas-api --resource-group hohmann-atlas-rg --set-env-vars "ALLOWED_ORIGINS=https://<username>.github.io"
+```
 
 ### GitHub Pages
 
