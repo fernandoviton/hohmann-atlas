@@ -59,3 +59,44 @@ Opens a web server at http://127.0.0.1:8000 with an interactive orbit visualizat
 cd backend
 pytest
 ```
+
+## Deployment
+
+The frontend deploys to GitHub Pages, the backend to Azure Container Apps (scales to zero). CI/CD is handled by GitHub Actions.
+
+### One-time Azure setup
+
+Requires the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) logged in.
+
+```bash
+bash infra/setup.sh
+```
+
+This creates a resource group, container registry, and container app, then prints the API URL.
+
+### GitHub repository secrets
+
+Set these in Settings > Secrets and variables > Actions:
+
+| Secret | Value |
+|---|---|
+| `AZURE_CREDENTIALS` | JSON from `az ad sp create-for-rbac --name hohmann-atlas-ci --role contributor --scopes /subscriptions/<sub-id>/resourceGroups/hohmann-atlas-rg --sdk-auth` |
+| `ACR_NAME` | Container registry name (e.g. `hohmannatlas`) |
+| `API_URL` | Azure Container App FQDN with `https://` prefix |
+
+### GitHub Pages
+
+Enable in Settings > Pages > Source: **GitHub Actions**.
+
+### How it works
+
+- **`ci.yml`** — runs `pytest` on every push and PR to `main`
+- **`deploy-backend.yml`** — on changes to `backend/`, builds the Docker image in ACR and updates the container app
+- **`deploy-frontend.yml`** — on changes to `frontend/`, injects the `API_URL` into `index.html` and deploys to GitHub Pages
+
+### Docker (manual)
+
+```bash
+docker build -t hohmann-atlas-api backend
+docker run -p 8000:8000 hohmann-atlas-api
+```

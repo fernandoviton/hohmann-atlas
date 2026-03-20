@@ -181,6 +181,7 @@
 </div>
 
 <script>
+const API_BASE = window.__API_BASE || '';
 const CX = 0, CY = 0;
 const PLANET_COLORS = {
   Mercury: '#a0a0a0', Venus: '#e8c46a', Earth: '#5e9eff',
@@ -377,7 +378,7 @@ function renderTable() {
 }
 
 async function loadPlanets() {
-  const resp = await fetch('/api/planets');
+  const resp = await fetch(API_BASE + '/api/planets');
   planets = await resp.json();
   const sel = document.getElementById('origin-select');
   sel.innerHTML = '<option value="">— choose —</option>' +
@@ -396,7 +397,7 @@ async function loadTransfers(origin) {
   const tbody = document.getElementById('results');
   tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
 
-  const resp = await fetch(`/api/transfers/${origin}`);
+  const resp = await fetch(`${API_BASE}/api/transfers/${origin}`);
   transfers = await resp.json();
   activeIdx = -1;
   drawOrbits(origin);

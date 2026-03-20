@@ -60,3 +60,9 @@ def test_get_campaign():
 def test_get_campaign_unknown():
     resp = client.get("/api/transfers/Tatooine")
     assert resp.status_code == 404
+
+
+def test_cors_headers():
+    resp = client.get("/api/planets", headers={"Origin": "https://example.com"})
+    assert resp.status_code == 200
+    assert "access-control-allow-origin" in resp.headers

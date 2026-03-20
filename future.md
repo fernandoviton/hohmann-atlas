@@ -12,11 +12,12 @@
 - Interactive planet selector with animated SVG orbit diagram
 - Campaign table with color-coded delta-v
 
-## Phase 4: Deployment
-- Azure Container Apps hosting (scales to zero)
-- CI/CD pipeline
-- Domain and HTTPS setup
-- We should consider putting the frontend on gh pages
+## ~~Phase 4: Deployment~~ ✓
+- Backend on Azure Container Apps (scales to zero, Dockerfile + infra/setup.sh)
+- Frontend on GitHub Pages
+- CI/CD via GitHub Actions (ci.yml, deploy-backend.yml, deploy-frontend.yml)
+- CORS middleware with configurable ALLOWED_ORIGINS env var
+- Frontend API_BASE configurable for split deploy
 
 ## Phase 5: Test UI
 - Manual and automated verification of the web UI

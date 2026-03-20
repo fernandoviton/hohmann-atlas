@@ -1,8 +1,12 @@
+import os
+
 import uvicorn
 
 
 def run():
-    uvicorn.run("app.api:app", host="127.0.0.1", port=8000, reload=True)
+    host = os.environ.get("HOST", "127.0.0.1")
+    reload = os.environ.get("RELOAD", "true").lower() == "true"
+    uvicorn.run("app.api:app", host=host, port=8000, reload=reload)
 
 
 if __name__ == "__main__":

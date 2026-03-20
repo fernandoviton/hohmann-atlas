@@ -50,10 +50,18 @@ pip install -e ".[dev]"
 - All physics values as astropy Quantities internally
 - Frozen dataclasses for engine results
 
+## Deployment
+
+- **Backend**: Azure Container Apps (scales to zero). Dockerfile in `backend/`, one-time setup via `infra/setup.sh`.
+- **Frontend**: GitHub Pages. `sed` injects `API_URL` secret at deploy time.
+- **CI/CD**: GitHub Actions — `ci.yml` (pytest on PRs), `deploy-backend.yml`, `deploy-frontend.yml`.
+- **CORS**: `ALLOWED_ORIGINS` env var (comma-separated, default `*` for local dev).
+- **Secrets needed**: `AZURE_CREDENTIALS`, `ACR_NAME`, `API_URL`.
+
 ## Learnings
 
 - Frontend is a single `index.html` with inline `<style>` and `<script>` — no build tools, no separate CSS/JS files. Favicon is also inline (SVG data URI).
 - API serialization: engine returns astropy Quantities; `api.py` converts to plain floats with `round(..., 4)` before building Pydantic models.
 - Orbit diagram uses logarithmic scale (`auToR`) so inner planets are visible alongside outer ones.
-- The frontend is served by FastAPI via `FileResponse` at `/`, so no CORS needed.
+- For local dev, FastAPI still serves `index.html` at `/` and CORS defaults to `*`. For production, frontend is on GitHub Pages with `API_BASE` pointing to Azure.
 - `httpx` is a dev dependency (needed by FastAPI's `TestClient`).

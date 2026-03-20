@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 
 import astropy.units as u
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.engine.bodies import PLANETS, get_planet
@@ -10,6 +12,14 @@ from app.engine.windows import synodic_period
 from app.models import PlanetResponse, TransferResponse
 
 app = FastAPI(title="Hohmann Atlas")
+
+origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 

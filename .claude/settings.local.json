@@ -17,7 +17,8 @@
       "WebFetch(domain:ai-solutions.com)",
       "Bash(python:*)",
       "Bash(where python:*)",
-      "Bash(where py:*)"
+      "Bash(where py:*)",
+      "Bash(.venv/Scripts/python -m pytest -v)"
     ]
   }
 }

@@ -1,0 +1,36 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths: [frontend/**]
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject API URL
+        run: |
+          sed -i "s|window.__API_BASE || ''|window.__API_BASE || '${{ secrets.API_URL }}'|" frontend/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
