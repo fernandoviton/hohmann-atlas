@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hohmann Atlas</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='10' fill='%23ffcc33'/><ellipse cx='32' cy='32' rx='28' ry='12' fill='none' stroke='%235e9eff' stroke-width='2' transform='rotate(-20 32 32)'/><circle cx='54' cy='24' r='4' fill='%235e9eff'/></svg>">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0a0e17;
+    color: #c8d6e5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem;
+  }
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #f0f4ff;
+    margin-bottom: 1rem;
+  }
+  h1 span { color: #5e9eff; }
+
+  /* Selector */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  label { font-size: 0.85rem; color: #8899aa; }
+  select {
+    background: #151b2b;
+    color: #e0e8f0;
+    border: 1px solid #2a3550;
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    outline: none;
+  }
+  select:hover { border-color: #5e9eff; }
+
+  /* SVG container */
+  .diagram-wrap {
+    width: 100%;
+    max-width: 640px;
+    aspect-ratio: 1;
+    margin-bottom: 1.5rem;
+  }
+  svg { width: 100%; height: 100%; }
+
+  /* Orbit rings */
+  .orbit-ring {
+    fill: none;
+    stroke: #1a2540;
+    stroke-width: 0.7;
+  }
+  .orbit-ring.origin-ring { stroke: #2a4570; stroke-width: 1; }
+
+  /* Planet dots */
+  .planet-dot { cursor: pointer; }
+  .planet-label {
+    font-size: 3.2px;
+    fill: #8899aa;
+    text-anchor: middle;
+  }
+  .planet-label.active { fill: #f0f4ff; font-weight: 600; }
+
+  /* Sun */
+  .sun { fill: #ffcc33; }
+  .sun-glow { fill: url(#sunGlow); }
+
+  /* Transfer arcs */
+  .transfer-arc {
+    fill: none;
+    stroke-width: 0.8;
+    opacity: 0.5;
+    cursor: pointer;
+    transition: opacity 0.3s;
+  }
+  .transfer-arc:hover, .transfer-arc.active { opacity: 1; stroke-width: 1.4; }
+
+  /* Spacecraft */
+  .spacecraft {
+    r: 1;
+    fill: #ffffff;
+    filter: url(#glow);
+  }
+
+  /* Table */
+  .table-wrap {
+    width: 100%;
+    max-width: 820px;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #2a3550;
+    color: #8899aa;
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  th.num { text-align: right; }
+  td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #151b2b;
+  }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.data-row { cursor: pointer; transition: background 0.2s; }
+  tr.data-row:hover, tr.data-row.active { background: #151b2b; }
+  .dv-green { color: #2ecc71; }
+  .dv-yellow { color: #f1c40f; }
+  .dv-red { color: #e74c3c; }
+  .loading { color: #5e9eff; text-align: center; padding: 2rem; }
+</style>
+</head>
+<body>
+
+<h1>Hohmann <span>Atlas</span></h1>
+
+<div class="controls">
+  <label for="origin-select">Origin planet</label>
+  <select id="origin-select"><option value="">Loading…</option></select>
+</div>
+
+<div class="diagram-wrap">
+  <svg id="diagram" viewBox="0 0 200 200">
+    <defs>
+      <radialGradient id="sunGlow">
+        <stop offset="0%" stop-color="#ffcc33" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="#ffcc33" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="0.6" result="g"/>
+        <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="planetGlow">
+        <feGaussianBlur stdDeviation="0.4" result="g"/>
+        <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <g id="scene" transform="translate(100,100)">
+      <circle class="sun-glow" cx="0" cy="0" r="6"/>
+      <circle class="sun" cx="0" cy="0" r="2.2"/>
+      <g id="orbits"></g>
+      <g id="transfers"></g>
+      <g id="planets"></g>
+    </g>
+  </svg>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Destination</th>
+        <th class="num">Departure Δv</th>
+        <th class="num">Arrival Δv</th>
+        <th class="num">Total Δv</th>
+        <th class="num">Transfer Time</th>
+        <th class="num">Synodic Period</th>
+      </tr>
+    </thead>
+    <tbody id="results"><tr><td colspan="6" class="loading">Select an origin planet</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+const CX = 0, CY = 0;
+const PLANET_COLORS = {
+  Mercury: '#a0a0a0', Venus: '#e8c46a', Earth: '#5e9eff',
+  Mars: '#e07040', Jupiter: '#d4a56a', Saturn: '#e8d080',
+  Uranus: '#80d4d4', Neptune: '#5070e0'
+};
+
+let planets = [];
+let transfers = [];
+let activeIdx = -1;
+
+// Log scale mapping: AU -> SVG radius (fits 0.38–30 AU into ~8–90 px)
+function auToR(au) {
+  return 8 + (Math.log(au) - Math.log(0.3)) / (Math.log(32) - Math.log(0.3)) * 82;
+}
+
+function dvColor(dv) {
+  if (dv < 6) return 'green';
+  if (dv < 10) return 'yellow';
+  return 'red';
+}
+
+function dvColorHex(dv) {
+  if (dv < 6) return '#2ecc71';
+  if (dv < 10) return '#f1c40f';
+  return '#e74c3c';
+}
+
+function formatTime(days) {
+  return days > 365.25 ? (days / 365.25).toFixed(1) + ' yr' : Math.round(days) + ' d';
+}
+
+function drawOrbits(originName) {
+  const orbG = document.getElementById('orbits');
+  const plG = document.getElementById('planets');
+  orbG.innerHTML = '';
+  plG.innerHTML = '';
+
+  planets.forEach((p, i) => {
+    const r = auToR(p.semi_major_axis_au);
+    const isOrigin = p.name === originName;
+
+    // Orbit ring
+    const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circ.setAttribute('cx', CX);
+    circ.setAttribute('cy', CY);
+    circ.setAttribute('r', r);
+    circ.setAttribute('class', 'orbit-ring' + (isOrigin ? ' origin-ring' : ''));
+    orbG.appendChild(circ);
+
+    // Planet dot — place at a random-ish angle based on index
+    const angle = (i * 0.85 + 0.3) * Math.PI * 2 / 8;
+    const px = CX + r * Math.cos(angle);
+    const py = CY + r * Math.sin(angle);
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'planet-dot');
+
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', px);
+    dot.setAttribute('cy', py);
+    dot.setAttribute('r', isOrigin ? 2 : 1.4);
+    dot.setAttribute('fill', PLANET_COLORS[p.name] || '#aaa');
+    dot.setAttribute('filter', 'url(#planetGlow)');
+    g.appendChild(dot);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', px);
+    label.setAttribute('y', py - (isOrigin ? 3.5 : 2.8));
+    label.setAttribute('class', 'planet-label' + (isOrigin ? ' active' : ''));
+    label.textContent = p.name;
+    g.appendChild(label);
+
+    plG.appendChild(g);
+  });
+}
+
+function drawTransfers(originName) {
+  const trG = document.getElementById('transfers');
+  trG.innerHTML = '';
+
+  if (!transfers.length) return;
+
+  const originPlanet = planets.find(p => p.name === originName);
+  if (!originPlanet) return;
+  const r1 = auToR(originPlanet.semi_major_axis_au);
+
+  transfers.forEach((t, i) => {
+    const destPlanet = planets.find(p => p.name === t.destination);
+    if (!destPlanet) return;
+    const r2 = auToR(destPlanet.semi_major_axis_au);
+
+    // Hohmann half-ellipse: semi-major = (r1+r2)/2, semi-minor = sqrt(r1*r2)
+    const a = (r1 + r2) / 2;
+    const b = Math.sqrt(r1 * r2);
+
+    // Draw as an SVG elliptical arc from (0, -r1) to (0, r2) — half ellipse
+    // We center the ellipse so origin is at bottom, destination at top
+    const startX = CX;
+    const startY = CY + r1;
+    const endX = CX;
+    const endY = CY - r2;
+
+    // Spread arcs around by rotating each one
+    const rotation = i * (360 / transfers.length);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const sweep = r2 >= r1 ? 1 : 0;
+    const d = `M ${startX} ${startY} A ${a} ${b} 0 0 ${sweep} ${endX} ${endY}`;
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'transfer-arc' + (i === activeIdx ? ' active' : ''));
+    path.setAttribute('stroke', dvColorHex(t.delta_v_total_km_s));
+    path.setAttribute('transform', `rotate(${rotation} ${CX} ${CY})`);
+    path.setAttribute('data-idx', i);
+
+    // Animate with dash
+    const len = path.getTotalLength ? 0 : 200; // estimated
+    path.style.strokeDasharray = '3 2';
+
+    path.addEventListener('click', () => setActive(i));
+    path.addEventListener('mouseenter', () => highlightRow(i, true));
+    path.addEventListener('mouseleave', () => highlightRow(i, false));
+
+    trG.appendChild(path);
+
+    // Spacecraft dot animation along the arc
+    const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    craft.setAttribute('class', 'spacecraft');
+    craft.setAttribute('r', '0.8');
+    craft.setAttribute('fill', '#fff');
+    craft.setAttribute('filter', 'url(#glow)');
+
+    const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+    anim.setAttribute('dur', (3 + i * 0.5) + 's');
+    anim.setAttribute('repeatCount', 'indefinite');
+    anim.setAttribute('rotate', 'auto');
+
+    const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+    const pathId = 'arc-' + i;
+    path.setAttribute('id', pathId);
+    mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + pathId);
+    anim.appendChild(mpath);
+    craft.appendChild(anim);
+
+    // Wrap spacecraft in group with same rotation
+    const sg = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    sg.setAttribute('transform', `rotate(${rotation} ${CX} ${CY})`);
+    sg.appendChild(craft);
+    trG.appendChild(sg);
+  });
+}
+
+function highlightRow(idx, on) {
+  const rows = document.querySelectorAll('.data-row');
+  if (rows[idx]) {
+    rows[idx].classList.toggle('active', on);
+  }
+  const arcs = document.querySelectorAll('.transfer-arc');
+  if (arcs[idx]) {
+    arcs[idx].classList.toggle('active', on);
+  }
+}
+
+function setActive(idx) {
+  activeIdx = activeIdx === idx ? -1 : idx;
+  document.querySelectorAll('.data-row').forEach((r, i) => r.classList.toggle('active', i === activeIdx));
+  document.querySelectorAll('.transfer-arc').forEach((a, i) => a.classList.toggle('active', i === activeIdx));
+}
+
+function renderTable() {
+  const tbody = document.getElementById('results');
+  if (!transfers.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">No transfers</td></tr>';
+    return;
+  }
+  tbody.innerHTML = transfers.map((t, i) => {
+    const cls = dvColor(t.delta_v_total_km_s);
+    return `<tr class="data-row" data-idx="${i}">
+      <td>${t.destination}</td>
+      <td class="num">${t.departure_dv_km_s.toFixed(2)} km/s</td>
+      <td class="num">${t.arrival_dv_km_s.toFixed(2)} km/s</td>
+      <td class="num dv-${cls}">${t.delta_v_total_km_s.toFixed(2)} km/s</td>
+      <td class="num">${formatTime(t.transfer_time_days)}</td>
+      <td class="num">${formatTime(t.synodic_period_days)}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.data-row').forEach(row => {
+    const idx = parseInt(row.dataset.idx);
+    row.addEventListener('click', () => setActive(idx));
+    row.addEventListener('mouseenter', () => highlightRow(idx, true));
+    row.addEventListener('mouseleave', () => highlightRow(idx, false));
+  });
+}
+
+async function loadPlanets() {
+  const resp = await fetch('/api/planets');
+  planets = await resp.json();
+  const sel = document.getElementById('origin-select');
+  sel.innerHTML = '<option value="">— choose —</option>' +
+    planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  drawOrbits(null);
+}
+
+async function loadTransfers(origin) {
+  if (!origin) {
+    transfers = [];
+    renderTable();
+    drawOrbits(null);
+    drawTransfers(null);
+    return;
+  }
+  const tbody = document.getElementById('results');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+
+  const resp = await fetch(`/api/transfers/${origin}`);
+  transfers = await resp.json();
+  activeIdx = -1;
+  drawOrbits(origin);
+  drawTransfers(origin);
+  renderTable();
+}
+
+document.getElementById('origin-select').addEventListener('change', e => {
+  loadTransfers(e.target.value);
+});
+
+loadPlanets();
+</script>
+</body>
+</html>

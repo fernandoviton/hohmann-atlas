@@ -19,11 +19,21 @@ pip install -e ".[dev]"
 
 ## Usage
 
+### CLI
+
 ```bash
 hohmann-atlas Mars
 ```
 
 Prints a table of all Hohmann transfers from the given origin planet, showing departure/arrival delta-v, total delta-v, transfer time, and synodic period.
+
+### Web UI
+
+```bash
+hohmann-serve
+```
+
+Opens a web server at http://127.0.0.1:8000 with an interactive orbit visualization. Select an origin planet to see animated Hohmann transfer arcs on a solar system diagram, with a color-coded campaign table showing delta-v budgets, transfer times, and synodic periods.
 
 ## Example Output
 (as of commit bf2d76e)
