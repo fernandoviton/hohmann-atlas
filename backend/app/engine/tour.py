@@ -69,7 +69,10 @@ def _find_options(origin: str, after: Time, depth: int, max_depth: int,
     hop_level = max_depth - depth + 1
     options = []
     for i, planet in enumerate(destinations, 1):
-        window = find_next_window(origin, planet.name, after)
+        try:
+            window = find_next_window(origin, planet.name, after)
+        except ValueError:
+            continue  # no cached window available for this pair/date
         wait_time = (window.launch_date - after).to(u.day)
 
         if on_progress:

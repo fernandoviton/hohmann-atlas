@@ -6,7 +6,6 @@ import astropy.units as u
 from astropy.time import Time
 from erfa import ErfaWarning
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
 from rich.table import Table
 
 from app.engine.bodies import PLANETS, get_planet
@@ -82,29 +81,7 @@ def _tour_command(args, console: Console) -> None:
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", ErfaWarning)
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            MofNCompleteColumn(),
-            console=console,
-        ) as progress:
-            tasks = {}  # depth_level -> progress task_id
-
-            def on_progress(hop_level, origin, dest, i, total):
-                # Create or update progress task for this hop level
-                if hop_level not in tasks:
-                    tasks[hop_level] = progress.add_task("", total=total)
-                # Remove deeper levels when we move back up
-                for old_level in [k for k in tasks if k > hop_level]:
-                    progress.remove_task(tasks.pop(old_level))
-                prefix = "  " * (hop_level - 1)
-                label = f"{prefix}Hop {hop_level}: {origin} -> {dest}"
-                progress.update(tasks[hop_level], completed=i, total=total,
-                                description=label)
-
-            node = plan_tour(args.planet, start_date, depth=args.depth,
-                             on_progress=on_progress)
+        node = plan_tour(args.planet, start_date, depth=args.depth)
 
         _print_tour_options(console, node.options, indent=0)
         _print_accuracy_note(console, node.options)
