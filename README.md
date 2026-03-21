@@ -23,11 +23,19 @@ pip install -e ".[dev]"
 
 ### CLI
 
+Run from the `backend/` directory (with the venv activated):
+
 ```bash
 hohmann-atlas Mars
 ```
 
 Prints a table of all Hohmann transfers from the given origin planet, showing departure/arrival delta-v, total delta-v, transfer time, and synodic period.
+
+```bash
+hohmann-atlas tour Mars --date 2026-06-01 --depth 2
+```
+
+Plans a multi-hop tour using real planetary ephemeris. Shows the next launch window from the origin planet, then for each destination shows onward transfer options with wait times, launch/arrival dates, and delta-v. `--depth` controls how many hops to compute (default 2).
 
 ### Web UI
 

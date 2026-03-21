@@ -19,9 +19,19 @@
 - CORS middleware with configurable ALLOWED_ORIGINS env var
 - Frontend API_BASE configurable for split deploy
 
-## Phase 4.5: Fix the orbit goals
-- Use the basic math we have but then set the target to be to more specific targets, which are also rotating, not just the orbit itself (or maybe add that as an additional mode)
-- Notes from the boss: there are pretty good, modular planetary transfer calculators (not JPL-level detail but that's unnecessary). With these, we should ask Claude to code up a "planetary tour" tool with a fun scifi UI which, given a date and a starting circular orbit around a planet (Mars), tells you how much deltaV and time are required to Hohmann transfer from start orbit to a Destination 1 orbit AND THEN (this is the cool part), provides all the options for where to go from there (in other words, all of the Hohmann transfers possible from Destination 1 at the time of arrival to any number of other places, how long you would have to wait, how long the trip would be and how much deltaV would be required.) On the transfer calculator, the issue is timing with respect to where the destination planet is along their orbit. In other words, you can easily calculate the transfer but all that will do is deposit you in the orbit of the target. The planet might be very well on the other side of the solar system. Thus, for these kinds of transfers you need to wait until the target planet is in the right place (relative to where you are) so that when you get there, the planet go there too, if that makes sense. This is actually the cool part of using this in game. For any transfer you contemplate, once there you need the system to calculate what other possibilities exist, each with their own wait times around the target planet. The only way to do this is to ask Claude to use known python libraries that calculate the positions of the planets given the actual date.
+## ~~Phase 4.5: Real Planetary Positions & Tour Engine~~ ✓
+- Ephemeris module using astropy's HeliocentricMeanEcliptic for real planetary positions at any date
+- Launch window finder: computes required phase angle, searches for next window via daily stepping + bisection
+- Multi-hop tour planner: given origin + date + configurable depth, finds all transfer options with wait times, then recursively finds options from each destination
+- CLI `tour` subcommand with argparse (`hohmann-atlas tour earth --date 2026-06-01 --depth 2`)
+- Backward-compatible: existing `hohmann-atlas <planet>` still works
+- Heliocentric transfers only (escape/capture delta-v from planetary parking orbits deferred to Phase 6)
+
+## Phase 4.6: Tour API & Frontend
+- REST endpoints: `GET /api/window/{origin}/{destination}?date=...`, `GET /api/tour/{origin}?date=...&depth=...`
+- Frontend tour mode: date picker, expandable tour table with second-hop options
+- Orbit diagram: show planets at real positions for selected date
+- Animated transfer playback: planets move along orbits, spacecraft travels the arc, showing timing alignment
 
 ## Phase 5: Test UI
 - Manual and automated verification of the web UI
@@ -36,3 +46,5 @@
 - Accessibility improvements
 - Loading states and error handling in the UI
 - Consider adding transfer details panel on arc/row click
+- Model escape/capture delta-v from planetary parking orbits (currently heliocentric only)
+- Sci-fi themed UI styling

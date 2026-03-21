@@ -8,7 +8,7 @@ Planetary-tour mission planner using real orbital mechanics. Computes Hohmann tr
 hohmann-atlas/
   backend/          Python package (engine, CLI, API)
     app/
-      engine/       Orbital mechanics (bodies, hohmann, windows)
+      engine/       Orbital mechanics (bodies, hohmann, windows, ephemeris, launch, tour)
       cli.py        Rich CLI
       api.py        FastAPI REST API
       models.py     Pydantic response models
@@ -33,7 +33,7 @@ pip install -e ".[dev]"
 
 ## Run
 
-- **CLI:** `hohmann-atlas <planet>`
+- **CLI:** `hohmann-atlas <planet>` (transfers) or `hohmann-atlas tour <planet> --date 2026-06-01 --depth 2` (tour)
 - **Web server:** `hohmann-serve` → http://127.0.0.1:8000
 - **Tests:** `cd backend && pytest`
 
