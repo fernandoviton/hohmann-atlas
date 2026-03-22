@@ -7,6 +7,7 @@ from astropy.time import Time
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.engine.bodies import PLANETS, get_planet
 from app.engine.ephemeris import heliocentric_longitude
@@ -189,6 +190,9 @@ def get_tour(origin: str, date: str = Query(), depth: int = Query(default=2)):
         start_date=t.iso[:10],
         options=[_serialize_tour_option(opt) for opt in node.options],
     )
+
+
+app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
 
 
 @app.get("/")
