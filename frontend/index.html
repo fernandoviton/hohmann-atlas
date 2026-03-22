@@ -122,11 +122,75 @@
   }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.data-row { cursor: pointer; transition: background 0.2s; }
-  tr.data-row:hover, tr.data-row.active { background: #151b2b; }
+  tr.data-row:hover { background: #151b2b; }
+  tr.data-row.active { background: #1a2540; outline: 1px solid #2a4570; }
   .dv-green { color: #2ecc71; }
   .dv-yellow { color: #f1c40f; }
   .dv-red { color: #e74c3c; }
   .loading { color: #5e9eff; text-align: center; padding: 2rem; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    gap: 2px;
+    background: #151b2b;
+    border-radius: 6px;
+    padding: 2px;
+    margin-right: 0.5rem;
+  }
+  .mode-toggle button {
+    background: transparent;
+    color: #8899aa;
+    border: none;
+    border-radius: 4px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .mode-toggle button.active {
+    background: #2a3550;
+    color: #f0f4ff;
+  }
+  .tour-ctrl { display: none; }
+  .tour-ctrl.visible { display: flex; align-items: center; }
+  input[type="date"] {
+    background: #151b2b;
+    color: #e0e8f0;
+    border: 1px solid #2a3550;
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    outline: none;
+  }
+  input[type="date"]:hover { border-color: #5e9eff; }
+
+  /* Tour table */
+  tr.tour-child td:first-child { padding-left: 2rem; }
+  tr.tour-child { opacity: 0.8; }
+  .expand-arrow {
+    display: inline-block;
+    width: 1em;
+    cursor: pointer;
+    transition: transform 0.2s;
+    user-select: none;
+  }
+  .expand-arrow.open { transform: rotate(90deg); }
+
+  /* Play button */
+  .play-btn {
+    background: #151b2b;
+    color: #5e9eff;
+    border: 1px solid #2a3550;
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: none;
+  }
+  .play-btn.visible { display: inline-block; }
+  .play-btn:hover { border-color: #5e9eff; background: #1a2540; }
 </style>
 </head>
 <body>
@@ -134,8 +198,22 @@
 <h1>Hohmann <span>Atlas</span></h1>
 
 <div class="controls">
-  <label for="origin-select">Origin planet</label>
+  <div class="mode-toggle">
+    <button id="mode-transfer" class="active">Transfers</button>
+    <button id="mode-tour">Tour</button>
+  </div>
+  <label for="origin-select">Origin</label>
   <select id="origin-select"><option value="">Loading…</option></select>
+  <span class="tour-ctrl" id="tour-ctrls">
+    <label for="date-input" style="margin-left:0.5rem">Date</label>
+    <input type="date" id="date-input" value="2026-06-01" min="2025-01-01" max="2199-12-31" style="margin-left:0.25rem">
+    <label for="depth-select" style="margin-left:0.5rem">Depth</label>
+    <select id="depth-select" style="margin-left:0.25rem">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+    </select>
+  </span>
+  <button id="play-btn" class="play-btn">&#9654; Play</button>
 </div>
 
 <div class="diagram-wrap">
@@ -166,8 +244,8 @@
 
 <div class="table-wrap">
   <table>
-    <thead>
-      <tr>
+    <thead id="table-head">
+      <tr id="transfer-head">
         <th>Destination</th>
         <th class="num">Departure Δv</th>
         <th class="num">Arrival Δv</th>
@@ -175,12 +253,30 @@
         <th class="num">Transfer Time</th>
         <th class="num">Synodic Period</th>
       </tr>
+      <tr id="tour-head" style="display:none">
+        <th>Destination</th>
+        <th class="num">Wait</th>
+        <th class="num">Launch</th>
+        <th class="num">Transfer Time</th>
+        <th class="num">Arrival</th>
+        <th class="num">Total Δv</th>
+      </tr>
     </thead>
     <tbody id="results"><tr><td colspan="6" class="loading">Select an origin planet</td></tr></tbody>
   </table>
 </div>
 
-<script>
+<script type="module">
+import {
+  createState, selectedIdx, selectByIdx, clearSelection,
+  setMode, setOrigin, setTransfers, setTourData, setPlanets,
+  setPositions, setTourDate, setTourDepth, startPlaying, stopPlaying,
+  setHoveredIdx, clearHoveredIdx, toggleTourExpand,
+  validateAndClampDate, dvColor, dvColorHex, formatTime, auToR,
+  getArcItems, getPlaybackData, transferArcPathD, transferPoint,
+} from '/static/atlas.js';
+import { log } from '/static/debug.js';
+
 const API_BASE = window.__API_BASE || '';
 const CX = 0, CY = 0;
 const PLANET_COLORS = {
@@ -189,42 +285,67 @@ const PLANET_COLORS = {
   Uranus: '#80d4d4', Neptune: '#5070e0'
 };
 
-let planets = [];
-let transfers = [];
-let activeIdx = -1;
+let renderPending = false;
+const prev = {};
 
-// Log scale mapping: AU -> SVG radius (fits 0.38–30 AU into ~8–90 px)
-function auToR(au) {
-  return 8 + (Math.log(au) - Math.log(0.3)) / (Math.log(32) - Math.log(0.3)) * 82;
+const state = new Proxy(createState(), {
+  set(target, key, value) {
+    if (target[key] === value) return true;
+    log('proxy', 'set', key, value);
+    if (!(key in prev)) prev[key] = target[key];
+    target[key] = value;
+    if (!renderPending) {
+      renderPending = true;
+      queueMicrotask(() => {
+        const changed = { ...prev };
+        for (const k in prev) prev[k] = undefined;
+        Object.keys(prev).forEach(k => delete prev[k]);
+        renderPending = false;
+        log('render', 'microtask', Object.keys(changed));
+        const onlySelection = Object.keys(changed).every(k => k === 'hoveredIdx');
+        if (onlySelection) renderSelection();
+        else render();
+        if ('tourDate' in changed && 'selectedDest' in changed && state.mode === 'tour' && state.origin) {
+          fetchTour();
+        }
+      });
+    }
+    return true;
+  },
+});
+
+// ─── Render (reads state, updates DOM) ───
+
+function render() {
+  log('render', 'full');
+  renderControls();
+  renderOrbits();
+  if (!state.playing) renderArcs();
+  renderTable();
+  renderSelection();
 }
 
-function dvColor(dv) {
-  if (dv < 6) return 'green';
-  if (dv < 10) return 'yellow';
-  return 'red';
+function renderControls() {
+  document.getElementById('mode-transfer').classList.toggle('active', state.mode === 'transfer');
+  document.getElementById('mode-tour').classList.toggle('active', state.mode === 'tour');
+  document.getElementById('tour-ctrls').classList.toggle('visible', state.mode === 'tour');
+  document.getElementById('transfer-head').style.display = state.mode === 'transfer' ? '' : 'none';
+  document.getElementById('tour-head').style.display = state.mode === 'tour' ? '' : 'none';
+  document.getElementById('origin-select').value = state.origin || '';
+  document.getElementById('date-input').value = state.tourDate;
+  document.getElementById('depth-select').value = state.tourDepth;
 }
 
-function dvColorHex(dv) {
-  if (dv < 6) return '#2ecc71';
-  if (dv < 10) return '#f1c40f';
-  return '#e74c3c';
-}
-
-function formatTime(days) {
-  return days > 365.25 ? (days / 365.25).toFixed(1) + ' yr' : Math.round(days) + ' d';
-}
-
-function drawOrbits(originName) {
+function renderOrbits() {
   const orbG = document.getElementById('orbits');
   const plG = document.getElementById('planets');
   orbG.innerHTML = '';
   plG.innerHTML = '';
 
-  planets.forEach((p, i) => {
+  state.planets.forEach((p, i) => {
     const r = auToR(p.semi_major_axis_au);
-    const isOrigin = p.name === originName;
+    const isOrigin = p.name === state.origin;
 
-    // Orbit ring
     const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circ.setAttribute('cx', CX);
     circ.setAttribute('cy', CY);
@@ -232,13 +353,15 @@ function drawOrbits(originName) {
     circ.setAttribute('class', 'orbit-ring' + (isOrigin ? ' origin-ring' : ''));
     orbG.appendChild(circ);
 
-    // Planet dot — place at a random-ish angle based on index
-    const angle = (i * 0.85 + 0.3) * Math.PI * 2 / 8;
+    const angle = state.positions[p.name] != null
+      ? -state.positions[p.name]
+      : (i * 0.85 + 0.3) * Math.PI * 2 / 8;
     const px = CX + r * Math.cos(angle);
     const py = CY + r * Math.sin(angle);
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'planet-dot');
+    g.setAttribute('data-planet', p.name);
 
     const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     dot.setAttribute('cx', px);
@@ -259,105 +382,55 @@ function drawOrbits(originName) {
   });
 }
 
-function drawTransfers(originName) {
+function renderArcs() {
   const trG = document.getElementById('transfers');
   trG.innerHTML = '';
 
-  if (!transfers.length) return;
+  const items = getArcItems(state);
+  if (!items.length || !state.origin) return;
 
-  const originPlanet = planets.find(p => p.name === originName);
+  const originPlanet = state.planets.find(p => p.name === state.origin);
   if (!originPlanet) return;
   const r1 = auToR(originPlanet.semi_major_axis_au);
+  const originAngle = state.positions[state.origin] != null ? -state.positions[state.origin] : 0;
 
-  transfers.forEach((t, i) => {
-    const destPlanet = planets.find(p => p.name === t.destination);
+  items.forEach((item, i) => {
+    const destPlanet = state.planets.find(p => p.name === item.dest);
     if (!destPlanet) return;
     const r2 = auToR(destPlanet.semi_major_axis_au);
 
-    // Hohmann half-ellipse: semi-major = (r1+r2)/2, semi-minor = sqrt(r1*r2)
-    const a = (r1 + r2) / 2;
-    const b = Math.sqrt(r1 * r2);
-
-    // Draw as an SVG elliptical arc from (0, -r1) to (0, r2) — half ellipse
-    // We center the ellipse so origin is at bottom, destination at top
-    const startX = CX;
-    const startY = CY + r1;
-    const endX = CX;
-    const endY = CY - r2;
-
-    // Spread arcs around by rotating each one
-    const rotation = i * (360 / transfers.length);
+    const destAngle = state.positions[item.dest] != null ? -state.positions[item.dest] : 0;
+    const omega = 2 * Math.PI / destPlanet.orbital_period_days;
+    const destEndAngle = destAngle - omega * item.transferDays;
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    const sweep = r2 >= r1 ? 1 : 0;
-    const d = `M ${startX} ${startY} A ${a} ${b} 0 0 ${sweep} ${endX} ${endY}`;
-    path.setAttribute('d', d);
-    path.setAttribute('class', 'transfer-arc' + (i === activeIdx ? ' active' : ''));
-    path.setAttribute('stroke', dvColorHex(t.delta_v_total_km_s));
-    path.setAttribute('transform', `rotate(${rotation} ${CX} ${CY})`);
+    path.setAttribute('d', transferArcPathD(r1, r2, originAngle, destEndAngle));
+    path.setAttribute('class', 'transfer-arc');
+    path.setAttribute('stroke', dvColorHex(item.dv));
     path.setAttribute('data-idx', i);
-
-    // Animate with dash
-    const len = path.getTotalLength ? 0 : 200; // estimated
+    path.setAttribute('id', `arc-${i}`);
     path.style.strokeDasharray = '3 2';
 
-    path.addEventListener('click', () => setActive(i));
-    path.addEventListener('mouseenter', () => highlightRow(i, true));
-    path.addEventListener('mouseleave', () => highlightRow(i, false));
+    path.addEventListener('click', () => selectByIdx(state, i));
+    path.addEventListener('mouseenter', () => setHoveredIdx(state, i));
+    path.addEventListener('mouseleave', () => clearHoveredIdx(state));
 
     trG.appendChild(path);
-
-    // Spacecraft dot animation along the arc
-    const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    craft.setAttribute('class', 'spacecraft');
-    craft.setAttribute('r', '0.8');
-    craft.setAttribute('fill', '#fff');
-    craft.setAttribute('filter', 'url(#glow)');
-
-    const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
-    anim.setAttribute('dur', (3 + i * 0.5) + 's');
-    anim.setAttribute('repeatCount', 'indefinite');
-    anim.setAttribute('rotate', 'auto');
-
-    const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
-    const pathId = 'arc-' + i;
-    path.setAttribute('id', pathId);
-    mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + pathId);
-    anim.appendChild(mpath);
-    craft.appendChild(anim);
-
-    // Wrap spacecraft in group with same rotation
-    const sg = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    sg.setAttribute('transform', `rotate(${rotation} ${CX} ${CY})`);
-    sg.appendChild(craft);
-    trG.appendChild(sg);
   });
 }
 
-function highlightRow(idx, on) {
-  const rows = document.querySelectorAll('.data-row');
-  if (rows[idx]) {
-    rows[idx].classList.toggle('active', on);
-  }
-  const arcs = document.querySelectorAll('.transfer-arc');
-  if (arcs[idx]) {
-    arcs[idx].classList.toggle('active', on);
-  }
-}
-
-function setActive(idx) {
-  activeIdx = activeIdx === idx ? -1 : idx;
-  document.querySelectorAll('.data-row').forEach((r, i) => r.classList.toggle('active', i === activeIdx));
-  document.querySelectorAll('.transfer-arc').forEach((a, i) => a.classList.toggle('active', i === activeIdx));
-}
-
 function renderTable() {
+  if (state.mode === 'transfer') renderTransferTable();
+  else renderTourTable();
+}
+
+function renderTransferTable() {
   const tbody = document.getElementById('results');
-  if (!transfers.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="loading">No transfers</td></tr>';
+  if (!state.transfers.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Select an origin planet</td></tr>';
     return;
   }
-  tbody.innerHTML = transfers.map((t, i) => {
+  tbody.innerHTML = state.transfers.map((t, i) => {
     const cls = dvColor(t.delta_v_total_km_s);
     return `<tr class="data-row" data-idx="${i}">
       <td>${t.destination}</td>
@@ -368,48 +441,262 @@ function renderTable() {
       <td class="num">${formatTime(t.synodic_period_days)}</td>
     </tr>`;
   }).join('');
+  wireRowEvents(tbody);
+}
 
-  tbody.querySelectorAll('.data-row').forEach(row => {
+function renderTourTable() {
+  const tbody = document.getElementById('results');
+  if (!state.tourData || !state.tourData.options.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">No tour options</td></tr>';
+    return;
+  }
+  let html = '';
+  state.tourData.options.forEach((opt, i) => {
+    const w = opt.window;
+    const cls = dvColor(w.delta_v_total_km_s);
+    const hasChildren = opt.next_options.length > 0;
+    const isExpanded = state.expandedTourParents.has(i);
+    const arrowCls = 'expand-arrow' + (isExpanded ? ' open' : '');
+    const arrow = hasChildren ? '<span class="' + arrowCls + '" data-parent="' + i + '">&#9656;</span>' : '<span style="width:1em;display:inline-block"></span>';
+    html += `<tr class="data-row" data-idx="${i}" data-date="${w.launch_date}">
+      <td>${arrow} ${w.destination}</td>
+      <td class="num">${formatTime(opt.wait_time_days)}</td>
+      <td class="num">${w.launch_date}</td>
+      <td class="num">${formatTime(w.transfer_time_days)}</td>
+      <td class="num">${w.arrival_date}</td>
+      <td class="num dv-${cls}">${w.delta_v_total_km_s.toFixed(2)} km/s</td>
+    </tr>`;
+    if (hasChildren) {
+      opt.next_options.forEach(sub => {
+        const sw = sub.window;
+        const scls = dvColor(sw.delta_v_total_km_s);
+        const childDisplay = isExpanded ? '' : 'display:none';
+        html += `<tr class="tour-child" data-parent="${i}" style="${childDisplay}">
+          <td>${sw.destination}</td>
+          <td class="num">${formatTime(sub.wait_time_days)}</td>
+          <td class="num">${sw.launch_date}</td>
+          <td class="num">${formatTime(sw.transfer_time_days)}</td>
+          <td class="num">${sw.arrival_date}</td>
+          <td class="num dv-${scls}">${sw.delta_v_total_km_s.toFixed(2)} km/s</td>
+        </tr>`;
+      });
+    }
+  });
+  tbody.innerHTML = html;
+
+  tbody.querySelectorAll('.expand-arrow').forEach(arrow => {
+    arrow.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleTourExpand(state, parseInt(arrow.dataset.parent));
+    });
+  });
+  wireRowEvents(tbody);
+}
+
+function wireRowEvents(tbody) {
+  const rows = tbody.querySelectorAll('.data-row');
+  log('event', 'wired', rows.length, 'rows');
+  rows.forEach(row => {
     const idx = parseInt(row.dataset.idx);
-    row.addEventListener('click', () => setActive(idx));
-    row.addEventListener('mouseenter', () => highlightRow(idx, true));
-    row.addEventListener('mouseleave', () => highlightRow(idx, false));
+    row.addEventListener('click', () => { log('event', 'row-click', idx); selectByIdx(state, idx); });
+    row.addEventListener('mouseenter', () => setHoveredIdx(state, idx));
+    row.addEventListener('mouseleave', () => clearHoveredIdx(state));
   });
 }
 
-async function loadPlanets() {
+function renderSelection() {
+  const idx = selectedIdx(state);
+  const hov = state.hoveredIdx;
+  log('selection', 'idx', idx, 'hov', hov);
+  document.querySelectorAll('.data-row').forEach((r, i) =>
+    r.classList.toggle('active', i === idx || i === hov));
+  if (!state.playing) {
+    document.querySelectorAll('.transfer-arc').forEach((a, i) => {
+      a.classList.toggle('active', i === idx || i === hov);
+      a.style.display = idx >= 0 && i !== idx ? 'none' : '';
+    });
+  }
+  document.getElementById('play-btn').classList.toggle('visible', idx >= 0);
+}
+
+// ─── Data fetching ───
+
+async function fetchPlanets() {
   const resp = await fetch(API_BASE + '/api/planets');
-  planets = await resp.json();
+  setPlanets(state, await resp.json());
   const sel = document.getElementById('origin-select');
   sel.innerHTML = '<option value="">— choose —</option>' +
-    planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-  drawOrbits(null);
+    state.planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  const today = new Date().toISOString().slice(0, 10);
+  await fetchPositions(today);
 }
 
-async function loadTransfers(origin) {
-  if (!origin) {
-    transfers = [];
-    renderTable();
-    drawOrbits(null);
-    drawTransfers(null);
+async function fetchPositions(date) {
+  const resp = await fetch(`${API_BASE}/api/positions?date=${date}`);
+  setPositions(state, await resp.json());
+}
+
+async function fetchTransfers() {
+  if (!state.origin) {
+    setTransfers(state, []);
+    clearSelection(state);
     return;
   }
-  const tbody = document.getElementById('results');
-  tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
-
-  const resp = await fetch(`${API_BASE}/api/transfers/${origin}`);
-  transfers = await resp.json();
-  activeIdx = -1;
-  drawOrbits(origin);
-  drawTransfers(origin);
-  renderTable();
+  const resp = await fetch(`${API_BASE}/api/transfers/${state.origin}`);
+  setTransfers(state, await resp.json());
 }
 
-document.getElementById('origin-select').addEventListener('change', e => {
-  loadTransfers(e.target.value);
+async function fetchTour() {
+  if (!state.origin) {
+    setTourData(state, null);
+    clearSelection(state);
+    return;
+  }
+  await fetchPositions(state.tourDate);
+  const resp = await fetch(`${API_BASE}/api/tour/${state.origin}?date=${state.tourDate}&depth=${state.tourDepth}`);
+  setTourData(state, await resp.json());
+}
+
+// ─── Animation ───
+
+let animId = null;
+
+function doStartPlayback() {
+  if (!startPlaying(state)) return;
+
+  const data = getPlaybackData(state);
+  if (!data) return;
+
+  const originPlanet = state.planets.find(p => p.name === data.originName);
+  const destPlanet = state.planets.find(p => p.name === data.destName);
+  if (!originPlanet || !destPlanet) return;
+
+  const startAngles = {};
+  state.planets.forEach(p => {
+    startAngles[p.name] = state.positions[p.name] != null ? -state.positions[p.name] : 0;
+  });
+  const omegas = {};
+  state.planets.forEach(p => {
+    omegas[p.name] = 2 * Math.PI / p.orbital_period_days;
+  });
+
+  const r1 = auToR(originPlanet.semi_major_axis_au);
+  const r2 = auToR(destPlanet.semi_major_axis_au);
+
+  const originAngle = startAngles[data.originName] || 0;
+  const destStartAngle = startAngles[data.destName] || 0;
+  const destEndAngle = destStartAngle - omegas[data.destName] * data.transferDays;
+
+  const trG = document.getElementById('transfers');
+  trG.innerHTML = '';
+  const visPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  visPath.setAttribute('d', transferArcPathD(r1, r2, originAngle, destEndAngle));
+  visPath.setAttribute('class', 'transfer-arc active');
+  visPath.setAttribute('stroke', dvColorHex(data.dv));
+  visPath.style.strokeDasharray = '3 2';
+  trG.appendChild(visPath);
+
+  const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  craft.setAttribute('r', '1.2');
+  craft.setAttribute('fill', '#fff');
+  craft.setAttribute('filter', 'url(#glow)');
+  trG.appendChild(craft);
+
+  const PLAYBACK_SECS = 5;
+  const startTime = performance.now();
+
+  function frame(now) {
+    if (!state.playing) { animId = null; return; }
+    const t = Math.min((now - startTime) / 1000 / PLAYBACK_SECS, 1);
+
+    const plG = document.getElementById('planets');
+    state.planets.forEach((p, i) => {
+      const r = auToR(p.semi_major_axis_au);
+      const angle = startAngles[p.name] - omegas[p.name] * data.transferDays * t;
+      const px = CX + r * Math.cos(angle);
+      const py = CY + r * Math.sin(angle);
+      const g = plG.children[i];
+      if (!g) return;
+      const dot = g.querySelector('circle');
+      const label = g.querySelector('text');
+      if (dot) { dot.setAttribute('cx', px); dot.setAttribute('cy', py); }
+      if (label) { label.setAttribute('x', px); label.setAttribute('y', py - 2.8); }
+    });
+
+    const pt = transferPoint(r1, r2, originAngle, destEndAngle, t);
+    craft.setAttribute('cx', pt.x);
+    craft.setAttribute('cy', pt.y);
+
+    if (t < 1) {
+      animId = requestAnimationFrame(frame);
+    } else {
+      animId = null;
+      stopPlaying(state);
+      setTimeout(() => render(), 1000);
+    }
+  }
+
+  animId = requestAnimationFrame(frame);
+}
+
+// ─── Date validation (DOM wrapper) ───
+
+function validateDate() {
+  const input = document.getElementById('date-input');
+  const clamped = validateAndClampDate(input.value);
+  input.value = clamped;
+  return clamped;
+}
+
+// ─── Event wiring ───
+
+document.getElementById('mode-transfer').addEventListener('click', () => {
+  setMode(state, 'transfer');
+  if (state.origin) fetchTransfers();
 });
 
-loadPlanets();
+document.getElementById('mode-tour').addEventListener('click', () => {
+  setMode(state, 'tour');
+  setTourDate(state, validateDate());
+  if (state.origin) fetchTour();
+});
+
+document.getElementById('origin-select').addEventListener('change', e => {
+  setOrigin(state, e.target.value);
+  if (state.mode === 'transfer') fetchTransfers();
+  else fetchTour();
+});
+
+document.getElementById('date-input').addEventListener('blur', () => {
+  if (state.mode !== 'tour') return;
+  setTourDate(state, validateDate());
+  fetchTour();
+});
+
+document.getElementById('date-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') e.target.blur();
+});
+
+document.getElementById('depth-select').addEventListener('change', () => {
+  if (state.mode !== 'tour') return;
+  setTourDepth(state, parseInt(document.getElementById('depth-select').value));
+  fetchTour();
+});
+
+document.getElementById('play-btn').addEventListener('click', doStartPlayback);
+
+document.addEventListener('click', e => {
+  if (selectedIdx(state) < 0) return;
+  // Use composedPath() — e.target may be detached by a render microtask
+  // that ran between the row click handler and this document handler.
+  const path = e.composedPath();
+  const inside = path.some(el => el.classList && (
+    el.classList.contains('table-wrap') || el.classList.contains('diagram-wrap') || el.classList.contains('controls')
+  ));
+  if (!inside) clearSelection(state);
+});
+
+fetchPlanets();
 </script>
 </body>
 </html>

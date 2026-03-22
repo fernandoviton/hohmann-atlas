@@ -68,6 +68,9 @@ Opens a web server at http://127.0.0.1:8000 with an interactive orbit visualizat
 ```bash
 cd backend
 pytest
+
+cd frontend
+node --test atlas.test.js
 ```
 
 ## Deployment
