@@ -21,5 +21,9 @@ dev = ["pytest>=8.0", "httpx>=0.27"]
 hohmann-atlas = "app.cli:main"
 hohmann-serve = "app.server:run"
 
+[tool.pytest.ini_options]
+markers = ["slow: slow tests that compute orbital windows (run with: pytest -m slow)"]
+addopts = "-m 'not slow'"
+
 [tool.setuptools.package-data]
 "app.engine" = ["data/*.json"]

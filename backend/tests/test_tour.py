@@ -60,15 +60,15 @@ def test_progress_callback_fires_with_real_ephemeris():
 
 
 def test_tour_far_future_raises():
-    """Start date well beyond cache range (2025–2100) must fail."""
-    with pytest.raises(ValueError, match=r"Cache covers 2025-01-01 to 2100-01-01"):
+    """Start date well beyond cache range (2025–2200) must fail."""
+    with pytest.raises(ValueError, match=r"Cache covers 2025-01-01 to 2200-01-01"):
         plan_tour("earth", Time("2280-06-01"), depth=1)
 
 
 def test_tour_near_end_of_range_empty_raises():
     """Start date inside cache range but after all cached windows must fail."""
     with pytest.raises(ValueError, match=r"No launch windows found"):
-        plan_tour("earth", Time("2099-12-30"), depth=1)
+        plan_tour("earth", Time("2199-12-30"), depth=1)
 
 
 def test_frozen_dataclasses(earth_tour):

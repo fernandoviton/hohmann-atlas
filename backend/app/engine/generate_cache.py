@@ -1,8 +1,14 @@
-"""Generate the launch window cache file.
+"""Generate the launch window cache file in batches.
 
-Usage: cd backend && python -m app.engine.generate_cache
+Usage:
+  # Generate a single batch (writes to data/windows_START_END.json):
+  cd backend && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01
+
+  # Merge all batch files into the final cache:
+  cd backend && python -m app.engine.generate_cache --merge
 """
 
+import argparse
 import json
 import warnings
 from datetime import datetime, timezone
@@ -18,9 +24,17 @@ from app.engine.ephemeris import phase_angle, required_phase_angle
 from app.engine.hohmann import compute_transfer
 from app.engine.windows import synodic_period
 
-OUTPUT_PATH = Path(__file__).parent / "data" / "windows.json"
-START = "2025-01-01"
-END = "2100-01-01"
+_DATA_DIR = Path(__file__).parent / "data"
+
+# Short field names used in the JSON cache.
+# Legend is embedded in every file for self-documentation.
+LEGEND = {
+    "l": "launch date (ISO 8601)",
+    "tt": "transfer time (days)",
+    "dd": "departure delta-v (km/s)",
+    "ad": "arrival delta-v (km/s)",
+    "dv": "total delta-v (km/s)",
+}
 
 
 def _phase_error_scalar(origin: str, destination: str, time: Time,
@@ -71,16 +85,16 @@ def _find_window_ephemeris(origin: str, destination: str, after: Time,
 
 def _to_dict(launch_date: Time, transfer) -> dict:
     return {
-        "launch": launch_date.iso[:10],
-        "transfer_time_days": round(transfer.transfer_time.to(u.day).value, 2),
-        "departure_dv_km_s": round(transfer.departure_dv.to(u.km / u.s).value, 4),
-        "arrival_dv_km_s": round(transfer.arrival_dv.to(u.km / u.s).value, 4),
-        "delta_v_total_km_s": round(transfer.delta_v_total.to(u.km / u.s).value, 4),
+        "l": launch_date.iso[:10],
+        "tt": round(transfer.transfer_time.to(u.day).value, 2),
+        "dd": round(transfer.departure_dv.to(u.km / u.s).value, 4),
+        "ad": round(transfer.arrival_dv.to(u.km / u.s).value, 4),
+        "dv": round(transfer.delta_v_total.to(u.km / u.s).value, 4),
     }
 
 
 def generate_pair(origin: str, destination: str,
-                  start: str = START, end: str = END) -> list[dict]:
+                  start: str, end: str) -> list[dict]:
     """Generate all launch windows for one planet pair over the date range."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", ErfaWarning)
@@ -96,20 +110,20 @@ def generate_pair(origin: str, destination: str,
                                        transfer, syn, required)
             if w is None:
                 break
-            if w["launch"] >= end:
+            if w["l"] >= end:
                 break
             windows.append(w)
-            # Jump past this window by half a synodic period
-            cursor = Time(w["launch"]) + TimeDelta(max(syn * 0.5, 30) * u.day)
+            cursor = Time(w["l"]) + TimeDelta(max(syn * 0.5, 30) * u.day)
         return windows
 
 
-def generate_all(start: str = START, end: str = END) -> dict:
+def generate_all(start: str, end: str) -> dict:
     """Generate windows for all 56 planet pairs."""
     result = {
-        "generated": datetime.now(timezone.utc).isoformat(),
+        "gen": datetime.now(timezone.utc).isoformat(),
         "range": [start, end],
-        "windows": {},
+        "legend": LEGEND,
+        "w": {},
     }
     total = len(PLANETS) * (len(PLANETS) - 1)
     done = 0
@@ -118,22 +132,89 @@ def generate_all(start: str = START, end: str = END) -> dict:
             if origin.name == dest.name:
                 continue
             key = f"{origin.name.lower()}->{dest.name.lower()}"
-            result["windows"][key] = generate_pair(
+            result["w"][key] = generate_pair(
                 origin.name, dest.name, start, end)
             done += 1
             print(f"  [{done}/{total}] {key}: "
-                  f"{len(result['windows'][key])} windows")
+                  f"{len(result['w'][key])} windows")
     return result
 
 
-def generate_and_write(output_path: str | None = None,
-                       start: str = START, end: str = END) -> None:
-    path = Path(output_path) if output_path else OUTPUT_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _batch_filename(start: str, end: str) -> str:
+    """Return filename like windows_2025_2050.json."""
+    return f"windows_{start[:4]}_{end[:4]}.json"
+
+
+def generate_batch(start: str, end: str) -> None:
+    """Generate one batch and write to data/windows_START_END.json."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    path = _DATA_DIR / _batch_filename(start, end)
+    print(f"Generating batch {start} -> {end} ...")
     data = generate_all(start, end)
-    path.write_text(json.dumps(data, indent=2))
-    print(f"Wrote {path}")
+    path.write_text(json.dumps(data))
+    print(f"Wrote {path} ({sum(len(v) for v in data['w'].values())} windows)")
+
+
+def merge_batches() -> None:
+    """Merge all windows_*_*.json batch files into the final windows.json."""
+    batch_files = sorted(_DATA_DIR.glob("windows_*_*.json"))
+    if not batch_files:
+        print("No batch files found in", _DATA_DIR)
+        return
+
+    merged_windows: dict[str, list[dict]] = {}
+    overall_start = None
+    overall_end = None
+
+    for bf in batch_files:
+        print(f"  Loading {bf.name} ...")
+        data = json.loads(bf.read_text())
+        batch_start, batch_end = data["range"]
+        if overall_start is None or batch_start < overall_start:
+            overall_start = batch_start
+        if overall_end is None or batch_end > overall_end:
+            overall_end = batch_end
+        for key, windows in data["w"].items():
+            if key not in merged_windows:
+                merged_windows[key] = []
+            merged_windows[key].extend(windows)
+
+    # Sort each pair's windows by launch date and deduplicate
+    for key in merged_windows:
+        seen = set()
+        deduped = []
+        for w in sorted(merged_windows[key], key=lambda w: w["l"]):
+            if w["l"] not in seen:
+                seen.add(w["l"])
+                deduped.append(w)
+        merged_windows[key] = deduped
+
+    result = {
+        "gen": datetime.now(timezone.utc).isoformat(),
+        "range": [overall_start, overall_end],
+        "legend": LEGEND,
+        "w": merged_windows,
+    }
+
+    output = _DATA_DIR / "windows.json"
+    output.write_text(json.dumps(result))
+    total = sum(len(v) for v in merged_windows.values())
+    print(f"Merged {len(batch_files)} batches -> {output} "
+          f"({len(merged_windows)} pairs, {total} windows, "
+          f"range {overall_start} to {overall_end})")
 
 
 if __name__ == "__main__":
-    generate_and_write()
+    parser = argparse.ArgumentParser(description="Generate launch window cache")
+    parser.add_argument("--start", help="Batch start date (YYYY-MM-DD)")
+    parser.add_argument("--end", help="Batch end date (YYYY-MM-DD)")
+    parser.add_argument("--merge", action="store_true",
+                        help="Merge all batch files into windows.json")
+    args = parser.parse_args()
+
+    if args.merge:
+        merge_batches()
+    elif args.start and args.end:
+        generate_batch(args.start, args.end)
+    else:
+        parser.error("provide --start and --end, or --merge")

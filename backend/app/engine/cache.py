@@ -1,4 +1,13 @@
-"""Launch window cache: load precomputed windows from JSON."""
+"""Launch window cache: load precomputed windows from JSON.
+
+The JSON file uses short field names for compactness.
+This module translates them to long names for callers:
+  l  -> launch
+  tt -> transfer_time_days
+  dd -> departure_dv_km_s
+  ad -> arrival_dv_km_s
+  dv -> delta_v_total_km_s
+"""
 
 import json
 from bisect import bisect_left
@@ -8,11 +17,30 @@ _CACHE_PATH = Path(__file__).parent / "data" / "windows.json"
 _cache = None
 
 
+def _expand_window(w: dict) -> dict:
+    """Translate short JSON keys to the long names callers expect."""
+    return {
+        "launch": w["l"],
+        "transfer_time_days": w["tt"],
+        "departure_dv_km_s": w["dd"],
+        "arrival_dv_km_s": w["ad"],
+        "delta_v_total_km_s": w["dv"],
+    }
+
+
 def load_cache() -> dict:
+    """Load and translate the JSON cache into the public format."""
     global _cache
     if _cache is None:
-        with open(_CACHE_PATH) as f:
-            _cache = json.load(f)
+        raw = json.loads(_CACHE_PATH.read_text())
+        _cache = {
+            "generated": raw["gen"],
+            "range": raw["range"],
+            "windows": {
+                key: [_expand_window(w) for w in windows]
+                for key, windows in raw["w"].items()
+            },
+        }
     return _cache
 
 

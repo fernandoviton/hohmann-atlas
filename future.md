@@ -33,13 +33,7 @@
 - Orbit diagram: show planets at real positions for selected date
 - Animated transfer playback: planets move along orbits, spacecraft travels the arc, showing timing alignment
 
-## Phase 5: Test UI
-- Manual and automated verification of the web UI
-- Cross-browser testing (Edge, Chrome, Firefox)
-- Verify orbit diagram renders correctly at different viewport sizes
-- Confirm transfer arc animations, table/diagram hover sync, and planet selection all work
-
-## Phase 6: Improve UI
+## Phase 5: Improve UI
 - Polish visual design and interactions
 - Improve orbit diagram accuracy and aesthetics
 - Add responsive layout for mobile
@@ -48,3 +42,9 @@
 - Consider adding transfer details panel on arc/row click
 - Model escape/capture delta-v from planetary parking orbits (currently heliocentric only)
 - Sci-fi themed UI styling
+
+## Phase 6: Test UI
+- Manual and automated verification of the web UI
+- Cross-browser testing (Edge, Chrome, Firefox)
+- Verify orbit diagram renders correctly at different viewport sizes
+- Confirm transfer arc animations, table/diagram hover sync, and planet selection all work

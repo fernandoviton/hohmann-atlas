@@ -66,16 +66,16 @@ def test_mars_jupiter_window():
 
 
 def test_year_2500_raises():
-    """Dates far beyond the cache range (2025–2100) must fail clearly."""
-    with pytest.raises(ValueError, match=r"Cache covers 2025-01-01 to 2100-01-01"):
+    """Dates far beyond the cache range (2025–2200) must fail clearly."""
+    with pytest.raises(ValueError, match=r"Cache covers 2025-01-01 to 2200-01-01"):
         find_next_window("earth", "mars", Time("2500-01-01"))
 
 
 def test_near_end_of_range_raises():
     """A date within the cache era but close enough to the end that no
     window remains should also fail with a clear error."""
-    with pytest.raises(ValueError, match=r"Cache covers 2025-01-01 to 2100-01-01"):
-        find_next_window("earth", "mars", Time("2099-12-01"))
+    with pytest.raises(ValueError, match=r"Cache covers 2025-01-01 to 2200-01-01"):
+        find_next_window("earth", "mars", Time("2199-12-01"))
 
 
 def test_frozen_dataclass():

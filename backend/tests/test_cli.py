@@ -83,7 +83,7 @@ def test_tour_out_of_range_shows_error():
         capture_output=True, text=True, timeout=30,
     )
     assert result.returncode != 0
-    assert "2100" in result.stdout or "2100" in result.stderr
+    assert "2200" in result.stdout or "2200" in result.stderr
 
 
 def test_tour_suppresses_erfa_warnings():
