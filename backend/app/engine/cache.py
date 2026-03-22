@@ -16,6 +16,13 @@ def load_cache() -> dict:
     return _cache
 
 
+def cache_date_range() -> tuple[str, str]:
+    """Return the (start, end) ISO date strings the cache covers."""
+    cache = load_cache()
+    r = cache["range"]
+    return (r[0], r[1])
+
+
 def lookup_window(origin: str, destination: str, after_iso: str) -> dict | None:
     """Find the first cached window for origin->destination on or after after_iso."""
     cache = load_cache()

@@ -75,6 +75,17 @@ def test_tour_shows_accuracy_note_for_far_dates():
     assert re.search(r"(?i)reduced.*accuracy.*\w+.*\d{4}", result.stdout)
 
 
+def test_tour_out_of_range_shows_error():
+    """Tour with a date beyond the cache range should fail with a clear message."""
+    result = subprocess.run(
+        [sys.executable, "-m", "app.cli", "tour", "mars",
+         "--date", "2280-06-01", "--depth", "1"],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode != 0
+    assert "2100" in result.stdout or "2100" in result.stderr
+
+
 def test_tour_suppresses_erfa_warnings():
     """Raw ERFA warnings should not appear in stderr."""
     result = subprocess.run(

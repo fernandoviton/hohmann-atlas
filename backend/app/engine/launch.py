@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import astropy.units as u
 from astropy.time import Time, TimeDelta
 
-from app.engine.cache import lookup_window
+from app.engine.cache import cache_date_range, lookup_window
 from app.engine.hohmann import compute_transfer
 
 
@@ -30,8 +30,10 @@ def find_next_window(origin: str, destination: str, after: Time) -> LaunchWindow
     after_iso = after.iso[:10]
     entry = lookup_window(origin, destination, after_iso)
     if entry is None:
+        cache_range = cache_date_range()
         raise ValueError(
             f"No cached window for {origin}->{destination} after {after_iso}. "
+            f"Cache covers {cache_range[0]} to {cache_range[1]}. "
             "Regenerate with: cd backend && python -m app.engine.generate_cache"
         )
 

@@ -7,6 +7,7 @@ import astropy.units as u
 from astropy.time import Time
 
 from app.engine.bodies import PLANETS
+from app.engine.cache import cache_date_range
 from app.engine.launch import LaunchWindow, find_next_window
 
 # on_progress(depth, origin, destination, local_index, local_total)
@@ -53,8 +54,23 @@ def plan_tour(origin: str, start_date: Time, depth: int = 2,
         TourNode with options for each reachable destination, each containing
         nested next_options if depth > 1.
     """
+    start_iso = start_date.iso[:10]
+    cache_start, cache_end = cache_date_range()
+    if start_iso >= cache_end:
+        raise ValueError(
+            f"Start date {start_iso} is beyond the cache range. "
+            f"Cache covers {cache_start} to {cache_end}."
+        )
+
     max_depth = depth
     options = _find_options(origin, start_date, depth, max_depth, on_progress)
+
+    if not options:
+        raise ValueError(
+            f"No launch windows found for {origin} after {start_iso}. "
+            f"Cache covers {cache_start} to {cache_end}."
+        )
+
     return TourNode(
         origin=options[0].window.origin if options else origin,
         start_date=start_date,

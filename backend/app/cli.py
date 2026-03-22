@@ -81,7 +81,11 @@ def _tour_command(args, console: Console) -> None:
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", ErfaWarning)
-        node = plan_tour(args.planet, start_date, depth=args.depth)
+        try:
+            node = plan_tour(args.planet, start_date, depth=args.depth)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            sys.exit(1)
 
         _print_tour_options(console, node.options, indent=0)
         _print_accuracy_note(console, node.options)
