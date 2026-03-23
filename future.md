@@ -27,11 +27,18 @@
 - Backward-compatible: existing `hohmann-atlas <planet>` still works
 - Heliocentric transfers only (escape/capture delta-v from planetary parking orbits deferred to Phase 6)
 
-## Phase 4.6: Tour API & Frontend
+## ~~Phase 4.6: Tour API & Frontend~~ ✓
 - REST endpoints: `GET /api/window/{origin}/{destination}?date=...`, `GET /api/tour/{origin}?date=...&depth=...`
 - Frontend tour mode: date picker, expandable tour table with second-hop options
 - Orbit diagram: show planets at real positions for selected date
 - Animated transfer playback: planets move along orbits, spacecraft travels the arc, showing timing alignment
+
+## ~~Phase 4.7: Multi-Hop Transfer Playback~~ ✓
+- Child tour rows are clickable: selecting a second-hop option draws both arcs on the diagram
+- Sequential animation: spacecraft traverses hop 1, waits at intermediate planet, then traverses hop 2
+- Hop 2 arc uses distinct dash pattern to visually distinguish from hop 1
+- State management: `selectChild`, `getSelectedHops`, `getPlaybackData` returns array for multi-hop
+- Proxy guard prevents data refetch when selecting a child row
 
 ## Phase 5: Improve UI
 - Polish visual design and interactions

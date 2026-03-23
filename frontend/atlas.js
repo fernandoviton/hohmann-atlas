@@ -17,6 +17,8 @@ export function createState() {
     playing: false,
     hoveredIdx: -1,
     expandedTourParents: new Set(),
+    selectedChildIdx: null,
+    arrived: null,
   };
 }
 
@@ -57,8 +59,21 @@ export function formatTime(days) {
 
 // ─── State mutations (return new state or mutate-in-place, caller renders) ───
 
+export function selectChild(state, parentIdx, childIdx) {
+  state.playing = false;
+  state.arrived = null;
+  const parent = state.tourData?.options[parentIdx];
+  if (!parent) return;
+  state.selectedDest = parent.window.destination;
+  state.selectedChildIdx = childIdx;
+  state.tourDate = parent.window.launch_date;
+  state.expandedTourParents = new Set([...state.expandedTourParents, parentIdx]);
+}
+
 export function selectByIdx(state, idx) {
   state.playing = false;
+  state.arrived = null;
+  state.selectedChildIdx = null;
   const prevDate = state.tourDate;
   const current = selectedIdx(state);
   if (current === idx) {
@@ -77,13 +92,17 @@ export function selectByIdx(state, idx) {
 
 export function clearSelection(state) {
   state.playing = false;
+  state.arrived = null;
   state.selectedDest = null;
+  state.selectedChildIdx = null;
 }
 
 export function setMode(state, mode) {
   state.mode = mode;
   state.playing = false;
+  state.arrived = null;
   state.selectedDest = null;
+  state.selectedChildIdx = null;
   state.expandedTourParents = new Set();
   if (mode === 'transfer') {
     state.tourData = null;
@@ -95,7 +114,9 @@ export function setMode(state, mode) {
 export function setOrigin(state, origin) {
   state.origin = origin || null;
   state.selectedDest = null;
+  state.selectedChildIdx = null;
   state.playing = false;
+  state.arrived = null;
 }
 
 export function setTourDate(state, date) {
@@ -130,8 +151,9 @@ export function startPlaying(state) {
   return true;
 }
 
-export function stopPlaying(state) {
+export function stopPlaying(state, arrivedAt, elapsedDays) {
   state.playing = false;
+  state.arrived = arrivedAt ? { destName: arrivedAt, elapsedDays } : null;
 }
 
 export function setHoveredIdx(state, idx) {
@@ -172,30 +194,70 @@ export function getArcItems(state) {
   }));
 }
 
-export function transferArcPathD(r1, r2, startAngle, endAngle, steps = 50) {
-  const a = (r1 + r2) / 2;
-  const e = Math.abs(r2 - r1) / (r1 + r2);
+// Normalize angular sweep: prograde (clockwise in SVG), then clamp
+// magnitude to [π/2, 3π/2].  This prevents spirals (> 2π), straight
+// lines (< π/2), and loops (non-monotonic bulge hacks).  For most
+// planet configurations the sweep is naturally near -π and passes
+// through unclamped; clamping only kicks in at extreme angular spans.
+export function normalizeSweep(raw) {
+  let s = raw % (2 * Math.PI);              // (-2π, 2π)
+  if (s > 0) s -= 2 * Math.PI;              // (-2π, 0]
+  if (s > -Math.PI / 2) s = -Math.PI / 2;   // min magnitude π/2
+  if (s < -3 * Math.PI / 2) s = -3 * Math.PI / 2; // max magnitude 3π/2
+  return s;
+}
+
+export function transferArcPathD(au1, au2, startAngle, endAngle, steps = 50) {
+  const a = (au1 + au2) / 2;
+  const e = Math.abs(au2 - au1) / (au1 + au2);
+  const sweep = normalizeSweep(endAngle - startAngle);
   const pts = [];
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const theta = r2 >= r1 ? Math.PI * t : Math.PI * (1 - t);
+    const theta = au2 >= au1 ? Math.PI * t : Math.PI * (1 - t);
     const rr = a * (1 - e * e) / (1 + e * Math.cos(theta));
-    const angle = startAngle + (endAngle - startAngle) * t;
-    pts.push(`${rr * Math.cos(angle)} ${rr * Math.sin(angle)}`);
+    const screenR = auToR(rr);
+    const angle = startAngle + sweep * t;
+    pts.push(`${screenR * Math.cos(angle)} ${screenR * Math.sin(angle)}`);
   }
   return 'M ' + pts.join(' L ');
 }
 
-export function transferPoint(r1, r2, startAngle, endAngle, t) {
-  const a = (r1 + r2) / 2;
-  const e = Math.abs(r2 - r1) / (r1 + r2);
-  const theta = r2 >= r1 ? Math.PI * t : Math.PI * (1 - t);
+export function transferPoint(au1, au2, startAngle, endAngle, t) {
+  const a = (au1 + au2) / 2;
+  const e = Math.abs(au2 - au1) / (au1 + au2);
+  const theta = au2 >= au1 ? Math.PI * t : Math.PI * (1 - t);
   const rr = a * (1 - e * e) / (1 + e * Math.cos(theta));
-  const angle = startAngle + (endAngle - startAngle) * t;
-  return { x: rr * Math.cos(angle), y: rr * Math.sin(angle) };
+  const screenR = auToR(rr);
+  const sweep = normalizeSweep(endAngle - startAngle);
+  const angle = startAngle + sweep * t;
+  return { x: screenR * Math.cos(angle), y: screenR * Math.sin(angle) };
+}
+
+export function getSelectedHops(state) {
+  if (state.selectedChildIdx == null) return [];
+  if (state.mode !== 'tour') return [];
+  const parentIdx = selectedIdx(state);
+  if (parentIdx < 0) return [];
+  const parent = state.tourData?.options[parentIdx];
+  if (!parent) return [];
+  const child = parent.next_options[state.selectedChildIdx];
+  if (!child) return [];
+  return [
+    { originName: state.origin, destName: parent.window.destination,
+      transferDays: parent.window.transfer_time_days, dv: parent.window.delta_v_total_km_s,
+      waitDaysBeforeHop: 0 },
+    { originName: parent.window.destination, destName: child.window.destination,
+      transferDays: child.window.transfer_time_days, dv: child.window.delta_v_total_km_s,
+      waitDaysBeforeHop: child.wait_time_days },
+  ];
 }
 
 export function getPlaybackData(state) {
+  if (state.selectedChildIdx != null) {
+    const hops = getSelectedHops(state);
+    if (hops.length) return hops;
+  }
   const idx = selectedIdx(state);
   if (idx < 0) return null;
   const isTransfer = state.mode === 'transfer';

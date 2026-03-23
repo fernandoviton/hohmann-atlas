@@ -238,6 +238,7 @@
       <g id="orbits"></g>
       <g id="transfers"></g>
       <g id="planets"></g>
+      <g id="spacecraft"></g>
     </g>
   </svg>
 </div>
@@ -272,6 +273,7 @@ import {
   setMode, setOrigin, setTransfers, setTourData, setPlanets,
   setPositions, setTourDate, setTourDepth, startPlaying, stopPlaying,
   setHoveredIdx, clearHoveredIdx, toggleTourExpand,
+  selectChild, getSelectedHops,
   validateAndClampDate, dvColor, dvColorHex, formatTime, auToR,
   getArcItems, getPlaybackData, transferArcPathD, transferPoint,
 } from '/static/atlas.js';
@@ -305,7 +307,7 @@ const state = new Proxy(createState(), {
         const onlySelection = Object.keys(changed).every(k => k === 'hoveredIdx');
         if (onlySelection) renderSelection();
         else render();
-        if ('tourDate' in changed && 'selectedDest' in changed && state.mode === 'tour' && state.origin) {
+        if ('tourDate' in changed && 'selectedDest' in changed && state.selectedChildIdx == null && state.mode === 'tour' && state.origin) {
           fetchTour();
         }
       });
@@ -321,6 +323,7 @@ function render() {
   renderControls();
   renderOrbits();
   if (!state.playing) renderArcs();
+  renderArrivedCraft();
   renderTable();
   renderSelection();
 }
@@ -353,9 +356,13 @@ function renderOrbits() {
     circ.setAttribute('class', 'orbit-ring' + (isOrigin ? ' origin-ring' : ''));
     orbG.appendChild(circ);
 
-    const angle = state.positions[p.name] != null
+    let angle = state.positions[p.name] != null
       ? -state.positions[p.name]
       : (i * 0.85 + 0.3) * Math.PI * 2 / 8;
+    if (state.arrived) {
+      const omega = 2 * Math.PI / p.orbital_period_days;
+      angle -= omega * state.arrived.elapsedDays;
+    }
     const px = CX + r * Math.cos(angle);
     const py = CY + r * Math.sin(angle);
 
@@ -386,18 +393,25 @@ function renderArcs() {
   const trG = document.getElementById('transfers');
   trG.innerHTML = '';
 
+  // Multi-hop arcs when child is selected
+  const hops = getSelectedHops(state);
+  if (hops.length === 2 && state.origin) {
+    renderMultiHopArcs(trG, hops);
+    return;
+  }
+
   const items = getArcItems(state);
   if (!items.length || !state.origin) return;
 
   const originPlanet = state.planets.find(p => p.name === state.origin);
   if (!originPlanet) return;
-  const r1 = auToR(originPlanet.semi_major_axis_au);
+  const r1 = originPlanet.semi_major_axis_au;
   const originAngle = state.positions[state.origin] != null ? -state.positions[state.origin] : 0;
 
   items.forEach((item, i) => {
     const destPlanet = state.planets.find(p => p.name === item.dest);
     if (!destPlanet) return;
-    const r2 = auToR(destPlanet.semi_major_axis_au);
+    const r2 = destPlanet.semi_major_axis_au;
 
     const destAngle = state.positions[item.dest] != null ? -state.positions[item.dest] : 0;
     const omega = 2 * Math.PI / destPlanet.orbital_period_days;
@@ -417,6 +431,66 @@ function renderArcs() {
 
     trG.appendChild(path);
   });
+}
+
+function renderArrivedCraft() {
+  const scG = document.getElementById('spacecraft');
+  scG.innerHTML = '';
+  if (!state.arrived) return;
+  const planet = state.planets.find(p => p.name === state.arrived.destName);
+  if (!planet) return;
+  let angle = state.positions[state.arrived.destName] != null ? -state.positions[state.arrived.destName] : 0;
+  const omega = 2 * Math.PI / planet.orbital_period_days;
+  angle -= omega * state.arrived.elapsedDays;
+  const r = auToR(planet.semi_major_axis_au);
+  const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  craft.setAttribute('cx', r * Math.cos(angle));
+  craft.setAttribute('cy', r * Math.sin(angle));
+  craft.setAttribute('r', '1.2');
+  craft.setAttribute('fill', '#fff');
+  craft.setAttribute('filter', 'url(#glow)');
+  scG.appendChild(craft);
+}
+
+function renderMultiHopArcs(trG, hops) {
+  const hop1 = hops[0], hop2 = hops[1];
+
+  const originPlanet = state.planets.find(p => p.name === hop1.originName);
+  const intermediatePlanet = state.planets.find(p => p.name === hop1.destName);
+  const destPlanet = state.planets.find(p => p.name === hop2.destName);
+  if (!originPlanet || !intermediatePlanet || !destPlanet) return;
+
+  const r1 = originPlanet.semi_major_axis_au;
+  const rMid = intermediatePlanet.semi_major_axis_au;
+  const r2 = destPlanet.semi_major_axis_au;
+
+  const originAngle = state.positions[hop1.originName] != null ? -state.positions[hop1.originName] : 0;
+  const midAngle = state.positions[hop1.destName] != null ? -state.positions[hop1.destName] : 0;
+  const destAngle = state.positions[hop2.destName] != null ? -state.positions[hop2.destName] : 0;
+
+  const omegaMid = 2 * Math.PI / intermediatePlanet.orbital_period_days;
+  const omegaDest = 2 * Math.PI / destPlanet.orbital_period_days;
+
+  // Hop 1: origin → intermediate arrival
+  const midArrivalAngle = midAngle - omegaMid * hop1.transferDays;
+  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path1.setAttribute('d', transferArcPathD(r1, rMid, originAngle, midArrivalAngle));
+  path1.setAttribute('class', 'transfer-arc active');
+  path1.setAttribute('stroke', dvColorHex(hop1.dv));
+  path1.style.strokeDasharray = '3 2';
+  trG.appendChild(path1);
+
+  // Hop 2: intermediate departure (after wait) → destination
+  const midDepartAngle = midArrivalAngle - omegaMid * hop2.waitDaysBeforeHop;
+  const totalElapsed = hop1.transferDays + hop2.waitDaysBeforeHop;
+  const destEndAngle = destAngle - omegaDest * (totalElapsed + hop2.transferDays);
+  const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path2.setAttribute('d', transferArcPathD(rMid, r2, midDepartAngle, destEndAngle));
+  path2.setAttribute('class', 'transfer-arc active');
+  path2.setAttribute('stroke', dvColorHex(hop2.dv));
+  path2.style.strokeDasharray = '1.5 1.5';
+  path2.style.opacity = '0.7';
+  trG.appendChild(path2);
 }
 
 function renderTable() {
@@ -467,11 +541,11 @@ function renderTourTable() {
       <td class="num dv-${cls}">${w.delta_v_total_km_s.toFixed(2)} km/s</td>
     </tr>`;
     if (hasChildren) {
-      opt.next_options.forEach(sub => {
+      opt.next_options.forEach((sub, j) => {
         const sw = sub.window;
         const scls = dvColor(sw.delta_v_total_km_s);
         const childDisplay = isExpanded ? '' : 'display:none';
-        html += `<tr class="tour-child" data-parent="${i}" style="${childDisplay}">
+        html += `<tr class="tour-child" data-parent="${i}" data-child-idx="${j}" style="${childDisplay}">
           <td>${sw.destination}</td>
           <td class="num">${formatTime(sub.wait_time_days)}</td>
           <td class="num">${sw.launch_date}</td>
@@ -502,21 +576,34 @@ function wireRowEvents(tbody) {
     row.addEventListener('mouseenter', () => setHoveredIdx(state, idx));
     row.addEventListener('mouseleave', () => clearHoveredIdx(state));
   });
+  tbody.querySelectorAll('.tour-child').forEach(row => {
+    const parentIdx = parseInt(row.dataset.parent);
+    const childIdx = parseInt(row.dataset.childIdx);
+    row.addEventListener('click', () => { log('event', 'child-click', parentIdx, childIdx); selectChild(state, parentIdx, childIdx); });
+  });
 }
 
 function renderSelection() {
   const idx = selectedIdx(state);
   const hov = state.hoveredIdx;
-  log('selection', 'idx', idx, 'hov', hov);
+  const childIdx = state.selectedChildIdx;
+  log('selection', 'idx', idx, 'hov', hov, 'child', childIdx);
   document.querySelectorAll('.data-row').forEach((r, i) =>
     r.classList.toggle('active', i === idx || i === hov));
+  document.querySelectorAll('.tour-child').forEach(r => {
+    const pi = parseInt(r.dataset.parent);
+    const ci = parseInt(r.dataset.childIdx);
+    r.classList.toggle('active', pi === idx && ci === childIdx);
+  });
   if (!state.playing) {
+    const isMultiHop = state.selectedChildIdx != null && getSelectedHops(state).length === 2;
     document.querySelectorAll('.transfer-arc').forEach((a, i) => {
+      if (isMultiHop) return; // multi-hop arcs are already styled by renderMultiHopArcs
       a.classList.toggle('active', i === idx || i === hov);
       a.style.display = idx >= 0 && i !== idx ? 'none' : '';
     });
   }
-  document.getElementById('play-btn').classList.toggle('visible', idx >= 0);
+  document.getElementById('play-btn').classList.toggle('visible', idx >= 0 || childIdx != null);
 }
 
 // ─── Data fetching ───
@@ -563,9 +650,16 @@ let animId = null;
 
 function doStartPlayback() {
   if (!startPlaying(state)) return;
+  state.arrived = null;
+  document.getElementById('spacecraft').innerHTML = '';
 
   const data = getPlaybackData(state);
   if (!data) return;
+
+  if (Array.isArray(data)) {
+    doMultiHopPlayback(data);
+    return;
+  }
 
   const originPlanet = state.planets.find(p => p.name === data.originName);
   const destPlanet = state.planets.find(p => p.name === data.destName);
@@ -580,8 +674,8 @@ function doStartPlayback() {
     omegas[p.name] = 2 * Math.PI / p.orbital_period_days;
   });
 
-  const r1 = auToR(originPlanet.semi_major_axis_au);
-  const r2 = auToR(destPlanet.semi_major_axis_au);
+  const r1 = originPlanet.semi_major_axis_au;
+  const r2 = destPlanet.semi_major_axis_au;
 
   const originAngle = startAngles[data.originName] || 0;
   const destStartAngle = startAngles[data.destName] || 0;
@@ -631,8 +725,129 @@ function doStartPlayback() {
       animId = requestAnimationFrame(frame);
     } else {
       animId = null;
-      stopPlaying(state);
-      setTimeout(() => render(), 1000);
+      stopPlaying(state, data.destName, data.transferDays);
+      render();
+    }
+  }
+
+  animId = requestAnimationFrame(frame);
+}
+
+function doMultiHopPlayback(hops) {
+  const hop1 = hops[0], hop2 = hops[1];
+
+  const originPlanet = state.planets.find(p => p.name === hop1.originName);
+  const intermediatePlanet = state.planets.find(p => p.name === hop1.destName);
+  const destPlanet = state.planets.find(p => p.name === hop2.destName);
+  if (!originPlanet || !intermediatePlanet || !destPlanet) return;
+
+  const startAngles = {};
+  state.planets.forEach(p => {
+    startAngles[p.name] = state.positions[p.name] != null ? -state.positions[p.name] : 0;
+  });
+  const omegas = {};
+  state.planets.forEach(p => {
+    omegas[p.name] = 2 * Math.PI / p.orbital_period_days;
+  });
+
+  const r1 = originPlanet.semi_major_axis_au;
+  const rMid = intermediatePlanet.semi_major_axis_au;
+  const r2 = destPlanet.semi_major_axis_au;
+
+  const originAngle = startAngles[hop1.originName] || 0;
+  const midStartAngle = startAngles[hop1.destName] || 0;
+  const destStartAngle = startAngles[hop2.destName] || 0;
+
+  const waitDays = hop2.waitDaysBeforeHop;
+  const totalDays = hop1.transferDays + waitDays + hop2.transferDays;
+  const frac1 = hop1.transferDays / totalDays;
+  const fracWait = (hop1.transferDays + waitDays) / totalDays;
+
+  // Hop 1 arc endpoints
+  const midArrivalAngle = midStartAngle - omegas[hop1.destName] * hop1.transferDays;
+  // Hop 2 arc endpoints
+  const midDepartAngle = midArrivalAngle - omegas[hop1.destName] * waitDays;
+  const totalElapsed = hop1.transferDays + waitDays;
+  const destEndAngle = destStartAngle - omegas[hop2.destName] * (totalElapsed + hop2.transferDays);
+
+  const trG = document.getElementById('transfers');
+  trG.innerHTML = '';
+
+  // Arc 1
+  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path1.setAttribute('d', transferArcPathD(r1, rMid, originAngle, midArrivalAngle));
+  path1.setAttribute('class', 'transfer-arc active');
+  path1.setAttribute('stroke', dvColorHex(hop1.dv));
+  path1.style.strokeDasharray = '3 2';
+  trG.appendChild(path1);
+
+  // Arc 2
+  const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path2.setAttribute('d', transferArcPathD(rMid, r2, midDepartAngle, destEndAngle));
+  path2.setAttribute('class', 'transfer-arc active');
+  path2.setAttribute('stroke', dvColorHex(hop2.dv));
+  path2.style.strokeDasharray = '1.5 1.5';
+  path2.style.opacity = '0.7';
+  trG.appendChild(path2);
+
+  // Spacecraft
+  const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  craft.setAttribute('r', '1.2');
+  craft.setAttribute('fill', '#fff');
+  craft.setAttribute('filter', 'url(#glow)');
+  trG.appendChild(craft);
+
+  const PLAYBACK_SECS = 5;
+  const startTime = performance.now();
+
+  function frame(now) {
+    if (!state.playing) { animId = null; return; }
+    const t = Math.min((now - startTime) / 1000 / PLAYBACK_SECS, 1);
+
+    // Move all planets based on totalDays elapsed
+    const plG = document.getElementById('planets');
+    state.planets.forEach((p, i) => {
+      const r = auToR(p.semi_major_axis_au);
+      const angle = startAngles[p.name] - omegas[p.name] * totalDays * t;
+      const px = CX + r * Math.cos(angle);
+      const py = CY + r * Math.sin(angle);
+      const g = plG.children[i];
+      if (!g) return;
+      const dot = g.querySelector('circle');
+      const label = g.querySelector('text');
+      if (dot) { dot.setAttribute('cx', px); dot.setAttribute('cy', py); }
+      if (label) { label.setAttribute('x', px); label.setAttribute('y', py - 2.8); }
+    });
+
+    // Position spacecraft
+    if (t <= frac1) {
+      // Hop 1: on arc 1
+      const localT = t / frac1;
+      const pt = transferPoint(r1, rMid, originAngle, midArrivalAngle, localT);
+      craft.setAttribute('cx', pt.x);
+      craft.setAttribute('cy', pt.y);
+    } else if (t <= fracWait) {
+      // Waiting at intermediate planet — follow its orbit
+      const currentMidAngle = midStartAngle - omegas[hop1.destName] * totalDays * t;
+      const screenRMid = auToR(rMid);
+      const px = screenRMid * Math.cos(currentMidAngle);
+      const py = screenRMid * Math.sin(currentMidAngle);
+      craft.setAttribute('cx', px);
+      craft.setAttribute('cy', py);
+    } else {
+      // Hop 2: on arc 2
+      const localT = (t - fracWait) / (1 - fracWait);
+      const pt = transferPoint(rMid, r2, midDepartAngle, destEndAngle, localT);
+      craft.setAttribute('cx', pt.x);
+      craft.setAttribute('cy', pt.y);
+    }
+
+    if (t < 1) {
+      animId = requestAnimationFrame(frame);
+    } else {
+      animId = null;
+      stopPlaying(state, hop2.destName, totalDays);
+      render();
     }
   }
 
