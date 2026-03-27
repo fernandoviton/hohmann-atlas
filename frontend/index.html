@@ -123,7 +123,7 @@
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.data-row { cursor: pointer; transition: background 0.2s; }
   tr.data-row:hover { background: #151b2b; }
-  tr.data-row.active { background: #1a2540; outline: 1px solid #2a4570; }
+  tr.data-row.active, tr.tour-child.active { background: #1a2540; outline: 1px solid #2a4570; }
   .dv-green { color: #2ecc71; }
   .dv-yellow { color: #f1c40f; }
   .dv-red { color: #e74c3c; }
@@ -168,7 +168,9 @@
 
   /* Tour table */
   tr.tour-child td:first-child { padding-left: 2rem; }
-  tr.tour-child { opacity: 0.8; }
+  tr.tour-child { opacity: 0.8; cursor: pointer; transition: background 0.2s; }
+  tr.tour-child:hover { background: #151b2b; }
+  tr.tour-child.active { opacity: 1; }
   .expand-arrow {
     display: inline-block;
     width: 1em;
