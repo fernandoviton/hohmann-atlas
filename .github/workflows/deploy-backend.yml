@@ -34,7 +34,7 @@ jobs:
         run: |
           az acr build \
             --registry ${{ secrets.ACR_NAME }} \
-            --image hohmann-atlas-api:latest \
+            --image hohmann-atlas-api:${{ github.sha }} \
             --file backend/Dockerfile \
             backend/
 
@@ -43,4 +43,4 @@ jobs:
           az containerapp update \
             --name hohmann-atlas-api \
             --resource-group hohmann-atlas-rg \
-            --image ${{ secrets.ACR_NAME }}.azurecr.io/hohmann-atlas-api:latest
+            --image ${{ secrets.ACR_NAME }}.azurecr.io/hohmann-atlas-api:${{ github.sha }}
