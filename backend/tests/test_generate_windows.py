@@ -22,7 +22,9 @@ _HASH_PATH = Path(__file__).resolve().parent / ".generate_cache_hash"
 
 
 def _current_hash() -> str:
-    return hashlib.sha256(_GENERATE_CACHE_PATH.read_bytes()).hexdigest()
+    # read_text normalizes line endings so the hash matches across Windows (CRLF) and Linux CI (LF)
+    text = _GENERATE_CACHE_PATH.read_text(encoding="utf-8")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def test_generate_cache_hash_current():
