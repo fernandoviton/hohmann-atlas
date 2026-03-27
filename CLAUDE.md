@@ -33,7 +33,7 @@ pip install -e ".[dev]"
 
 ## Run
 
-- **CLI:** `hohmann-atlas <planet>` (transfers) or `hohmann-atlas tour <planet> --date 2026-06-01 --depth 2` (tour)
+- **CLI:** `hohmann-atlas <planet> --date 2026-06-01 [--depth 1]`
 - **Web server:** `hohmann-serve` → http://127.0.0.1:8000
 - **Tests (backend):** `cd backend && pytest`
 - **Tests (frontend):** `cd frontend && node --test atlas.test.js`

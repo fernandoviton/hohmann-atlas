@@ -129,31 +129,6 @@
   .dv-red { color: #e74c3c; }
   .loading { color: #5e9eff; text-align: center; padding: 2rem; }
 
-  /* Mode toggle */
-  .mode-toggle {
-    display: flex;
-    gap: 2px;
-    background: #151b2b;
-    border-radius: 6px;
-    padding: 2px;
-    margin-right: 0.5rem;
-  }
-  .mode-toggle button {
-    background: transparent;
-    color: #8899aa;
-    border: none;
-    border-radius: 4px;
-    padding: 0.35rem 0.7rem;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-  }
-  .mode-toggle button.active {
-    background: #2a3550;
-    color: #f0f4ff;
-  }
-  .tour-ctrl { display: none; }
-  .tour-ctrl.visible { display: flex; align-items: center; }
   input[type="date"] {
     background: #151b2b;
     color: #e0e8f0;
@@ -200,21 +175,15 @@
 <h1>Hohmann <span>Atlas</span></h1>
 
 <div class="controls">
-  <div class="mode-toggle">
-    <button id="mode-transfer" class="active">Transfers</button>
-    <button id="mode-tour">Tour</button>
-  </div>
   <label for="origin-select">Origin</label>
   <select id="origin-select"><option value="">Loading…</option></select>
-  <span class="tour-ctrl" id="tour-ctrls">
-    <label for="date-input" style="margin-left:0.5rem">Date</label>
-    <input type="date" id="date-input" value="2026-06-01" min="2025-01-01" max="2199-12-31" style="margin-left:0.25rem">
-    <label for="depth-select" style="margin-left:0.5rem">Depth</label>
-    <select id="depth-select" style="margin-left:0.25rem">
-      <option value="1">1</option>
-      <option value="2" selected>2</option>
-    </select>
-  </span>
+  <label for="date-input" style="margin-left:0.5rem">Date</label>
+  <input type="date" id="date-input" value="2026-06-01" min="2025-01-01" max="2199-12-31" style="margin-left:0.25rem">
+  <label for="depth-select" style="margin-left:0.5rem">Depth</label>
+  <select id="depth-select" style="margin-left:0.25rem">
+    <option value="1" selected>1</option>
+    <option value="2">2</option>
+  </select>
   <button id="play-btn" class="play-btn">&#9654; Play</button>
 </div>
 
@@ -248,15 +217,7 @@
 <div class="table-wrap">
   <table>
     <thead id="table-head">
-      <tr id="transfer-head">
-        <th>Destination</th>
-        <th class="num">Departure Δv</th>
-        <th class="num">Arrival Δv</th>
-        <th class="num">Total Δv</th>
-        <th class="num">Transfer Time</th>
-        <th class="num">Synodic Period</th>
-      </tr>
-      <tr id="tour-head" style="display:none">
+      <tr id="tour-head">
         <th>Destination</th>
         <th class="num">Wait</th>
         <th class="num">Launch</th>
@@ -272,7 +233,7 @@
 <script type="module">
 import {
   createState, selectedIdx, selectByIdx, clearSelection,
-  setMode, setOrigin, setTransfers, setTourData, setPlanets,
+  setOrigin, setTourData, setPlanets,
   setPositions, setTourDate, setTourDepth, startPlaying, stopPlaying,
   setHoveredIdx, clearHoveredIdx, toggleTourExpand,
   selectChild, getSelectedHops,
@@ -313,7 +274,7 @@ const state = new Proxy(createState(), {
         const onlySelection = Object.keys(changed).every(k => k === 'hoveredIdx');
         if (onlySelection) renderSelection();
         else render();
-        if ('tourDate' in changed && 'selectedDest' in changed && state.selectedChildIdx == null && state.mode === 'tour' && state.origin) {
+        if ('tourDate' in changed && 'selectedDest' in changed && state.selectedChildIdx == null && state.origin) {
           fetchTour();
         }
       });
@@ -335,11 +296,6 @@ function render() {
 }
 
 function renderControls() {
-  document.getElementById('mode-transfer').classList.toggle('active', state.mode === 'transfer');
-  document.getElementById('mode-tour').classList.toggle('active', state.mode === 'tour');
-  document.getElementById('tour-ctrls').classList.toggle('visible', state.mode === 'tour');
-  document.getElementById('transfer-head').style.display = state.mode === 'transfer' ? '' : 'none';
-  document.getElementById('tour-head').style.display = state.mode === 'tour' ? '' : 'none';
   document.getElementById('origin-select').value = state.origin || '';
   document.getElementById('date-input').value = state.tourDate;
   document.getElementById('depth-select').value = state.tourDepth;
@@ -493,28 +449,7 @@ function renderMultiHopArcs(trG, hops) {
 }
 
 function renderTable() {
-  if (state.mode === 'transfer') renderTransferTable();
-  else renderTourTable();
-}
-
-function renderTransferTable() {
-  const tbody = document.getElementById('results');
-  if (!state.transfers.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="loading">Select an origin planet</td></tr>';
-    return;
-  }
-  tbody.innerHTML = state.transfers.map((t, i) => {
-    const cls = dvColor(t.delta_v_total_km_s);
-    return `<tr class="data-row" data-idx="${i}">
-      <td>${t.destination}</td>
-      <td class="num">${t.departure_dv_km_s.toFixed(2)} km/s</td>
-      <td class="num">${t.arrival_dv_km_s.toFixed(2)} km/s</td>
-      <td class="num dv-${cls}">${t.delta_v_total_km_s.toFixed(2)} km/s</td>
-      <td class="num">${formatTime(t.transfer_time_days)}</td>
-      <td class="num">${formatTime(t.synodic_period_days)}</td>
-    </tr>`;
-  }).join('');
-  wireRowEvents(tbody);
+  renderTourTable();
 }
 
 function renderTourTable() {
@@ -620,16 +555,6 @@ async function fetchPlanets() {
 async function fetchPositions(date) {
   const resp = await fetch(`${API_BASE}/api/positions?date=${date}`);
   setPositions(state, await resp.json());
-}
-
-async function fetchTransfers() {
-  if (!state.origin) {
-    setTransfers(state, []);
-    clearSelection(state);
-    return;
-  }
-  const resp = await fetch(`${API_BASE}/api/transfers/${state.origin}`);
-  setTransfers(state, await resp.json());
 }
 
 async function fetchTour() {
@@ -855,25 +780,12 @@ function validateDate() {
 
 // ─── Event wiring ───
 
-document.getElementById('mode-transfer').addEventListener('click', () => {
-  setMode(state, 'transfer');
-  if (state.origin) fetchTransfers();
-});
-
-document.getElementById('mode-tour').addEventListener('click', () => {
-  setMode(state, 'tour');
-  setTourDate(state, validateDate());
-  if (state.origin) fetchTour();
-});
-
 document.getElementById('origin-select').addEventListener('change', e => {
   setOrigin(state, e.target.value);
-  if (state.mode === 'transfer') fetchTransfers();
-  else fetchTour();
+  fetchTour();
 });
 
 document.getElementById('date-input').addEventListener('blur', () => {
-  if (state.mode !== 'tour') return;
   setTourDate(state, validateDate());
   fetchTour();
 });
@@ -883,7 +795,6 @@ document.getElementById('date-input').addEventListener('keydown', e => {
 });
 
 document.getElementById('depth-select').addEventListener('change', () => {
-  if (state.mode !== 'tour') return;
   setTourDepth(state, parseInt(document.getElementById('depth-select').value));
   fetchTour();
 });

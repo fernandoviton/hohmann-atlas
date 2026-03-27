@@ -9,9 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from app.engine.bodies import PLANETS, get_planet
-from app.engine.hohmann import compute_transfer
 from app.engine.tour import plan_tour
-from app.engine.windows import synodic_period
 
 _ERFA_ACCURACY_YEAR = 2050
 
@@ -28,43 +26,6 @@ def _format_days(days: float) -> str:
     if days > 365.25:
         return f"{days / 365.25:.1f} yr"
     return f"{days:.0f} d"
-
-
-def _transfer_command(args, console: Console) -> None:
-    try:
-        origin = get_planet(args.planet)
-    except ValueError:
-        console.print(f"[red]Unknown planet: {args.planet}[/red]")
-        sys.exit(1)
-
-    table = Table(title=f"Hohmann Transfers from {origin.name}")
-    table.add_column("Destination", style="cyan")
-    table.add_column("Departure dv", justify="right")
-    table.add_column("Arrival dv", justify="right")
-    table.add_column("Total dv", justify="right")
-    table.add_column("Transfer Time", justify="right")
-    table.add_column("Synodic Period", justify="right")
-
-    for dest in PLANETS:
-        if dest.name == origin.name:
-            continue
-
-        t = compute_transfer(origin.name, dest.name)
-        syn = synodic_period(origin.name, dest.name)
-
-        dv_total = t.delta_v_total.to(u.km / u.s).value
-        color = _dv_color(dv_total)
-
-        table.add_row(
-            dest.name,
-            f"{t.departure_dv.to(u.km / u.s).value:.2f} km/s",
-            f"{t.arrival_dv.to(u.km / u.s).value:.2f} km/s",
-            f"[{color}]{dv_total:.2f} km/s[/{color}]",
-            _format_days(t.transfer_time.to(u.day).value),
-            _format_days(syn.to(u.day).value),
-        )
-
-    console.print(table)
 
 
 def _tour_command(args, console: Console) -> None:
@@ -154,41 +115,18 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="hohmann-atlas",
-        description="Planetary Hohmann transfer calculator",
+        description="Planetary Hohmann transfer tour planner",
     )
-    subparsers = parser.add_subparsers(dest="command")
-
-    # Transfer subcommand
-    transfer_parser = subparsers.add_parser(
-        "transfer", help="Show Hohmann transfers from a planet"
-    )
-    transfer_parser.add_argument("planet", help="Origin planet")
-
-    # Tour subcommand
-    tour_parser = subparsers.add_parser(
-        "tour", help="Plan a multi-hop tour with launch windows"
-    )
-    tour_parser.add_argument("planet", help="Starting planet")
-    tour_parser.add_argument(
+    parser.add_argument("planet", help="Starting planet")
+    parser.add_argument(
         "--date", required=True, help="Start date (ISO format, e.g. 2026-06-01)"
     )
-    tour_parser.add_argument(
-        "--depth", type=int, default=2, help="Number of hops to compute (default: 2)"
+    parser.add_argument(
+        "--depth", type=int, default=1, help="Number of hops to compute (default: 1)"
     )
 
-    # Backward compat: if first arg is not a subcommand, treat as planet name
-    if len(sys.argv) > 1 and sys.argv[1] not in ("transfer", "tour", "-h", "--help"):
-        sys.argv.insert(1, "transfer")
-
     args = parser.parse_args()
-
-    if args.command == "transfer":
-        _transfer_command(args, console)
-    elif args.command == "tour":
-        _tour_command(args, console)
-    else:
-        parser.print_help()
-        sys.exit(1)
+    _tour_command(args, console)
 
 
 if __name__ == "__main__":

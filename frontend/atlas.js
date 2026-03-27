@@ -14,12 +14,10 @@ export function createState() {
   return {
     planets: [],
     positions: {},
-    mode: 'transfer',
     origin: null,
-    transfers: [],
     tourData: null,
     tourDate: '2026-06-01',
-    tourDepth: 2,
+    tourDepth: 1,
     selectedDest: null,
     playing: false,
     hoveredIdx: -1,
@@ -33,11 +31,8 @@ export function createState() {
 
 export function selectedIdx(state) {
   if (!state.selectedDest) return -1;
-  if (state.mode === 'tour' && state.tourData) {
+  if (state.tourData) {
     return state.tourData.options.findIndex(o => o.window.destination === state.selectedDest);
-  }
-  if (state.mode === 'transfer' && state.transfers.length) {
-    return state.transfers.findIndex(t => t.destination === state.selectedDest);
   }
   return -1;
 }
@@ -64,12 +59,10 @@ export function selectByIdx(state, idx) {
   if (current === idx) {
     state.selectedDest = null;
   } else {
-    if (state.mode === 'tour' && state.tourData) {
+    if (state.tourData) {
       const opt = state.tourData.options[idx];
       state.selectedDest = opt?.window.destination || null;
       if (opt) state.tourDate = opt.window.launch_date;
-    } else if (state.mode === 'transfer') {
-      state.selectedDest = state.transfers[idx]?.destination || null;
     }
   }
   return { tourDateChanged: state.tourDate !== prevDate };
@@ -80,20 +73,6 @@ export function clearSelection(state) {
   state.arrived = null;
   state.selectedDest = null;
   state.selectedChildIdx = null;
-}
-
-export function setMode(state, mode) {
-  state.mode = mode;
-  state.playing = false;
-  state.arrived = null;
-  state.selectedDest = null;
-  state.selectedChildIdx = null;
-  state.expandedTourParents = new Set();
-  if (mode === 'transfer') {
-    state.tourData = null;
-  } else {
-    state.transfers = [];
-  }
 }
 
 export function setOrigin(state, origin) {
@@ -110,10 +89,6 @@ export function setTourDate(state, date) {
 
 export function setTourDepth(state, depth) {
   state.tourDepth = depth;
-}
-
-export function setTransfers(state, transfers) {
-  state.transfers = transfers;
 }
 
 export function setTourData(state, tourData) {
@@ -158,24 +133,12 @@ export function toggleTourExpand(state, parentIdx) {
 
 /**
  * Validates and clamps a date string to ensure it falls within acceptable bounds.
- * 
+ *
  * If the provided date string is invalid or cannot be parsed, defaults to today's date.
  * The date is then clamped to ensure it doesn't fall below CACHE_MIN or above CACHE_MAX.
- * 
+ *
  * @param {string} dateStr - The date string to validate and clamp (e.g., "2023-12-25")
  * @returns {string} - The validated and clamped date string in ISO format (YYYY-MM-DD)
- * 
- * @example
- * // Returns today's date if invalid input
- * validateAndClampDate("invalid-date");
- * 
- * @example
- * // Clamps to CACHE_MIN if date is too early
- * validateAndClampDate("1900-01-01");
- * 
- * @example
- * // Returns the date as-is if it's within valid range
- * validateAndClampDate("2023-06-15");
  */
 export function validateAndClampDate(dateStr) {
   let date = dateStr;
@@ -190,9 +153,6 @@ export function validateAndClampDate(dateStr) {
 // ─── Selectors for rendering ───
 
 export function getArcItems(state) {
-  if (state.mode === 'transfer') {
-    return state.transfers.map(t => ({ dest: t.destination, dv: t.delta_v_total_km_s, transferDays: t.transfer_time_days }));
-  }
   return (state.tourData?.options || []).map(o => ({
     dest: o.window.destination,
     dv: o.window.delta_v_total_km_s,
@@ -202,7 +162,6 @@ export function getArcItems(state) {
 
 export function getSelectedHops(state) {
   if (state.selectedChildIdx == null) return [];
-  if (state.mode !== 'tour') return [];
   const parentIdx = selectedIdx(state);
   if (parentIdx < 0) return [];
   const parent = state.tourData?.options[parentIdx];
@@ -226,10 +185,9 @@ export function getPlaybackData(state) {
   }
   const idx = selectedIdx(state);
   if (idx < 0) return null;
-  const isTransfer = state.mode === 'transfer';
-  const opt = isTransfer ? state.transfers[idx] : state.tourData?.options[idx];
+  const opt = state.tourData?.options[idx];
   if (!opt) return null;
-  const w = isTransfer ? opt : opt.window;
+  const w = opt.window;
   return {
     originName: state.origin,
     destName: w.destination,

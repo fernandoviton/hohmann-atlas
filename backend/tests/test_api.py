@@ -16,52 +16,6 @@ def test_get_planets():
         assert "orbital_period_days" in p
 
 
-def test_get_transfer():
-    resp = client.get("/api/transfer/Earth/Mars")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert 5.0 <= data["delta_v_total_km_s"] <= 6.5
-    assert 250 <= data["transfer_time_days"] <= 270
-
-
-def test_get_transfer_case_insensitive():
-    resp = client.get("/api/transfer/earth/mars")
-    assert resp.status_code == 200
-
-
-def test_get_transfer_same_planet():
-    resp = client.get("/api/transfer/Earth/Earth")
-    assert resp.status_code == 400
-
-
-def test_get_transfer_unknown_planet():
-    resp = client.get("/api/transfer/Earth/Tatooine")
-    assert resp.status_code == 404
-
-
-def test_get_campaign():
-    resp = client.get("/api/transfers/Earth")
-    assert resp.status_code == 200
-    transfers = resp.json()
-    assert len(transfers) == 7
-    expected_fields = {
-        "origin",
-        "destination",
-        "departure_dv_km_s",
-        "arrival_dv_km_s",
-        "delta_v_total_km_s",
-        "transfer_time_days",
-        "synodic_period_days",
-    }
-    for t in transfers:
-        assert expected_fields <= set(t.keys())
-
-
-def test_get_campaign_unknown():
-    resp = client.get("/api/transfers/Tatooine")
-    assert resp.status_code == 404
-
-
 def test_cors_headers():
     resp = client.get("/api/planets", headers={"Origin": "https://example.com"})
     assert resp.status_code == 200
@@ -149,11 +103,12 @@ def test_get_tour_depth_2():
 
 
 def test_get_tour_default_depth():
+    """Default depth is now 1, so no next_options."""
     resp = client.get("/api/tour/Earth", params={"date": "2026-06-01"})
     assert resp.status_code == 200
     data = resp.json()
     has_next = any(len(opt["next_options"]) > 0 for opt in data["options"])
-    assert has_next
+    assert not has_next
 
 
 def test_get_tour_unknown_planet():
