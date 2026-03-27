@@ -192,9 +192,4 @@ def get_tour(origin: str, date: str = Query(), depth: int = Query(default=2)):
     )
 
 
-app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
-
-
-@app.get("/")
-def index():
-    return FileResponse(_FRONTEND_DIR / "index.html")
+app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="static")
