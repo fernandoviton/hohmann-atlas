@@ -542,19 +542,49 @@ function renderSelection() {
 
 // ─── Data fetching ───
 
+const FETCH_TIMEOUT_MS = 15000;
+
+async function apiFetch(url) {
+  log('fetch', url);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!resp.ok) {
+      log('fetch', 'error', resp.status, url);
+      throw new Error(`HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    log('fetch', 'ok', url);
+    return data;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      log('fetch', 'timeout', url);
+      throw new Error(`Request timed out: ${url}`);
+    }
+    throw err;
+  }
+}
+
 async function fetchPlanets() {
-  const resp = await fetch(API_BASE + '/api/planets');
-  setPlanets(state, await resp.json());
-  const sel = document.getElementById('origin-select');
-  sel.innerHTML = '<option value="">— choose —</option>' +
-    state.planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-  const today = new Date().toISOString().slice(0, 10);
-  await fetchPositions(today);
+  try {
+    setPlanets(state, await apiFetch(API_BASE + '/api/planets'));
+    const sel = document.getElementById('origin-select');
+    sel.innerHTML = '<option value="">— choose —</option>' +
+      state.planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+    const today = new Date().toISOString().slice(0, 10);
+    await fetchPositions(today);
+  } catch (err) {
+    console.error('Failed to load planets:', err);
+    document.getElementById('origin-select').innerHTML =
+      '<option value="">Failed to connect to API</option>';
+  }
 }
 
 async function fetchPositions(date) {
-  const resp = await fetch(`${API_BASE}/api/positions?date=${date}`);
-  setPositions(state, await resp.json());
+  setPositions(state, await apiFetch(`${API_BASE}/api/positions?date=${date}`));
 }
 
 async function fetchTour() {
@@ -563,9 +593,14 @@ async function fetchTour() {
     clearSelection(state);
     return;
   }
-  await fetchPositions(state.tourDate);
-  const resp = await fetch(`${API_BASE}/api/tour/${state.origin}?date=${state.tourDate}&depth=${state.tourDepth}`);
-  setTourData(state, await resp.json());
+  try {
+    await fetchPositions(state.tourDate);
+    setTourData(state, await apiFetch(`${API_BASE}/api/tour/${state.origin}?date=${state.tourDate}&depth=${state.tourDepth}`));
+  } catch (err) {
+    console.error('Failed to load tour:', err);
+    document.getElementById('results').innerHTML =
+      '<tr><td colspan="6" class="loading">API error — check connection</td></tr>';
+  }
 }
 
 // ─── Animation ───

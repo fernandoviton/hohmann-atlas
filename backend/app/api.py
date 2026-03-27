@@ -144,4 +144,5 @@ def get_tour(origin: str, date: str = Query(), depth: int = Query(default=1)):
     )
 
 
-app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="static")
+if _FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="static")

@@ -18,6 +18,21 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t hohmann-test backend/
+      - name: Verify API starts without frontend dir
+        run: |
+          docker run -d --name hohmann -p 8000:8000 hohmann-test
+          for i in 1 2 3 4 5; do
+            if curl -sf http://localhost:8000/api/planets; then exit 0; fi
+            sleep 2
+          done
+          docker logs hohmann
+          exit 1
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
