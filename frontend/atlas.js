@@ -1,4 +1,11 @@
-// ─── Pure state & logic (no DOM access) ───
+// ─── State management (no DOM access) ───
+
+// Re-export orbit helpers so existing consumers don't break
+export {
+  auToR, dvColor, dvColorHex, formatTime,
+  normalizeSweep, transferArcPathD, transferPoint,
+  arrivalAngle, singleHopArcSpec, multiHopArcSpec, parsePath,
+} from './orbit.js';
 
 export const CACHE_MIN = '2025-01-01';
 export const CACHE_MAX = '2199-12-31';
@@ -33,28 +40,6 @@ export function selectedIdx(state) {
     return state.transfers.findIndex(t => t.destination === state.selectedDest);
   }
   return -1;
-}
-
-// ─── Helpers ───
-
-export function auToR(au) {
-  return 8 + (Math.log(au) - Math.log(0.3)) / (Math.log(32) - Math.log(0.3)) * 82;
-}
-
-export function dvColor(dv) {
-  if (dv < 6) return 'green';
-  if (dv < 10) return 'yellow';
-  return 'red';
-}
-
-export function dvColorHex(dv) {
-  if (dv < 6) return '#2ecc71';
-  if (dv < 10) return '#f1c40f';
-  return '#e74c3c';
-}
-
-export function formatTime(days) {
-  return days > 365.25 ? (days / 365.25).toFixed(1) + ' yr' : Math.round(days) + ' d';
 }
 
 // ─── State mutations (return new state or mutate-in-place, caller renders) ───
@@ -171,6 +156,27 @@ export function toggleTourExpand(state, parentIdx) {
   state.expandedTourParents = next;
 }
 
+/**
+ * Validates and clamps a date string to ensure it falls within acceptable bounds.
+ * 
+ * If the provided date string is invalid or cannot be parsed, defaults to today's date.
+ * The date is then clamped to ensure it doesn't fall below CACHE_MIN or above CACHE_MAX.
+ * 
+ * @param {string} dateStr - The date string to validate and clamp (e.g., "2023-12-25")
+ * @returns {string} - The validated and clamped date string in ISO format (YYYY-MM-DD)
+ * 
+ * @example
+ * // Returns today's date if invalid input
+ * validateAndClampDate("invalid-date");
+ * 
+ * @example
+ * // Clamps to CACHE_MIN if date is too early
+ * validateAndClampDate("1900-01-01");
+ * 
+ * @example
+ * // Returns the date as-is if it's within valid range
+ * validateAndClampDate("2023-06-15");
+ */
 export function validateAndClampDate(dateStr) {
   let date = dateStr;
   if (!date || isNaN(new Date(date).getTime())) {
@@ -192,46 +198,6 @@ export function getArcItems(state) {
     dv: o.window.delta_v_total_km_s,
     transferDays: o.window.transfer_time_days,
   }));
-}
-
-// Normalize angular sweep: prograde (clockwise in SVG), then clamp
-// magnitude to [π/2, 3π/2].  This prevents spirals (> 2π), straight
-// lines (< π/2), and loops (non-monotonic bulge hacks).  For most
-// planet configurations the sweep is naturally near -π and passes
-// through unclamped; clamping only kicks in at extreme angular spans.
-export function normalizeSweep(raw) {
-  let s = raw % (2 * Math.PI);              // (-2π, 2π)
-  if (s > 0) s -= 2 * Math.PI;              // (-2π, 0]
-  if (s > -Math.PI / 2) s = -Math.PI / 2;   // min magnitude π/2
-  if (s < -3 * Math.PI / 2) s = -3 * Math.PI / 2; // max magnitude 3π/2
-  return s;
-}
-
-export function transferArcPathD(au1, au2, startAngle, endAngle, steps = 50) {
-  const a = (au1 + au2) / 2;
-  const e = Math.abs(au2 - au1) / (au1 + au2);
-  const sweep = normalizeSweep(endAngle - startAngle);
-  const pts = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const theta = au2 >= au1 ? Math.PI * t : Math.PI * (1 - t);
-    const rr = a * (1 - e * e) / (1 + e * Math.cos(theta));
-    const screenR = auToR(rr);
-    const angle = startAngle + sweep * t;
-    pts.push(`${screenR * Math.cos(angle)} ${screenR * Math.sin(angle)}`);
-  }
-  return 'M ' + pts.join(' L ');
-}
-
-export function transferPoint(au1, au2, startAngle, endAngle, t) {
-  const a = (au1 + au2) / 2;
-  const e = Math.abs(au2 - au1) / (au1 + au2);
-  const theta = au2 >= au1 ? Math.PI * t : Math.PI * (1 - t);
-  const rr = a * (1 - e * e) / (1 + e * Math.cos(theta));
-  const screenR = auToR(rr);
-  const sweep = normalizeSweep(endAngle - startAngle);
-  const angle = startAngle + sweep * t;
-  return { x: screenR * Math.cos(angle), y: screenR * Math.sin(angle) };
 }
 
 export function getSelectedHops(state) {

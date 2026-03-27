@@ -274,9 +274,13 @@ import {
   setPositions, setTourDate, setTourDepth, startPlaying, stopPlaying,
   setHoveredIdx, clearHoveredIdx, toggleTourExpand,
   selectChild, getSelectedHops,
-  validateAndClampDate, dvColor, dvColorHex, formatTime, auToR,
-  getArcItems, getPlaybackData, transferArcPathD, transferPoint,
+  validateAndClampDate, getArcItems, getPlaybackData,
 } from '/static/atlas.js';
+import {
+  auToR, dvColor, dvColorHex, formatTime,
+  transferArcPathD, transferPoint,
+  singleHopArcSpec, multiHopArcSpec, arrivalAngle,
+} from '/static/orbit.js';
 import { log } from '/static/debug.js';
 
 const API_BASE = window.__API_BASE || '';
@@ -412,13 +416,12 @@ function renderArcs() {
     const destPlanet = state.planets.find(p => p.name === item.dest);
     if (!destPlanet) return;
     const r2 = destPlanet.semi_major_axis_au;
-
     const destAngle = state.positions[item.dest] != null ? -state.positions[item.dest] : 0;
-    const omega = 2 * Math.PI / destPlanet.orbital_period_days;
-    const destEndAngle = destAngle - omega * item.transferDays;
+
+    const spec = singleHopArcSpec(r1, r2, originAngle, destAngle, destPlanet.orbital_period_days, item.transferDays);
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', transferArcPathD(r1, r2, originAngle, destEndAngle));
+    path.setAttribute('d', spec.pathD);
     path.setAttribute('class', 'transfer-arc');
     path.setAttribute('stroke', dvColorHex(item.dv));
     path.setAttribute('data-idx', i);
@@ -435,13 +438,13 @@ function renderArcs() {
 
 function renderArrivedCraft() {
   const scG = document.getElementById('spacecraft');
+  if (state.playing) return;
   scG.innerHTML = '';
   if (!state.arrived) return;
   const planet = state.planets.find(p => p.name === state.arrived.destName);
   if (!planet) return;
-  let angle = state.positions[state.arrived.destName] != null ? -state.positions[state.arrived.destName] : 0;
-  const omega = 2 * Math.PI / planet.orbital_period_days;
-  angle -= omega * state.arrived.elapsedDays;
+  const baseAngle = state.positions[state.arrived.destName] != null ? -state.positions[state.arrived.destName] : 0;
+  const angle = arrivalAngle(baseAngle, planet.orbital_period_days, state.arrived.elapsedDays);
   const r = auToR(planet.semi_major_axis_au);
   const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   craft.setAttribute('cx', r * Math.cos(angle));
@@ -460,32 +463,26 @@ function renderMultiHopArcs(trG, hops) {
   const destPlanet = state.planets.find(p => p.name === hop2.destName);
   if (!originPlanet || !intermediatePlanet || !destPlanet) return;
 
-  const r1 = originPlanet.semi_major_axis_au;
-  const rMid = intermediatePlanet.semi_major_axis_au;
-  const r2 = destPlanet.semi_major_axis_au;
-
   const originAngle = state.positions[hop1.originName] != null ? -state.positions[hop1.originName] : 0;
   const midAngle = state.positions[hop1.destName] != null ? -state.positions[hop1.destName] : 0;
   const destAngle = state.positions[hop2.destName] != null ? -state.positions[hop2.destName] : 0;
 
-  const omegaMid = 2 * Math.PI / intermediatePlanet.orbital_period_days;
-  const omegaDest = 2 * Math.PI / destPlanet.orbital_period_days;
+  const spec = multiHopArcSpec(
+    originPlanet.semi_major_axis_au, intermediatePlanet.semi_major_axis_au, destPlanet.semi_major_axis_au,
+    originAngle, midAngle, destAngle,
+    intermediatePlanet.orbital_period_days, destPlanet.orbital_period_days,
+    hop1.transferDays, hop2.waitDaysBeforeHop, hop2.transferDays
+  );
 
-  // Hop 1: origin → intermediate arrival
-  const midArrivalAngle = midAngle - omegaMid * hop1.transferDays;
   const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path1.setAttribute('d', transferArcPathD(r1, rMid, originAngle, midArrivalAngle));
+  path1.setAttribute('d', spec.hop1.pathD);
   path1.setAttribute('class', 'transfer-arc active');
   path1.setAttribute('stroke', dvColorHex(hop1.dv));
   path1.style.strokeDasharray = '3 2';
   trG.appendChild(path1);
 
-  // Hop 2: intermediate departure (after wait) → destination
-  const midDepartAngle = midArrivalAngle - omegaMid * hop2.waitDaysBeforeHop;
-  const totalElapsed = hop1.transferDays + hop2.waitDaysBeforeHop;
-  const destEndAngle = destAngle - omegaDest * (totalElapsed + hop2.transferDays);
   const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path2.setAttribute('d', transferArcPathD(rMid, r2, midDepartAngle, destEndAngle));
+  path2.setAttribute('d', spec.hop2.pathD);
   path2.setAttribute('class', 'transfer-arc active');
   path2.setAttribute('stroke', dvColorHex(hop2.dv));
   path2.style.strokeDasharray = '1.5 1.5';
@@ -674,17 +671,17 @@ function doStartPlayback() {
     omegas[p.name] = 2 * Math.PI / p.orbital_period_days;
   });
 
-  const r1 = originPlanet.semi_major_axis_au;
-  const r2 = destPlanet.semi_major_axis_au;
-
   const originAngle = startAngles[data.originName] || 0;
-  const destStartAngle = startAngles[data.destName] || 0;
-  const destEndAngle = destStartAngle - omegas[data.destName] * data.transferDays;
+  const destCurrentAngle = startAngles[data.destName] || 0;
+  const spec = singleHopArcSpec(
+    originPlanet.semi_major_axis_au, destPlanet.semi_major_axis_au,
+    originAngle, destCurrentAngle, destPlanet.orbital_period_days, data.transferDays
+  );
 
   const trG = document.getElementById('transfers');
   trG.innerHTML = '';
   const visPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  visPath.setAttribute('d', transferArcPathD(r1, r2, originAngle, destEndAngle));
+  visPath.setAttribute('d', spec.pathD);
   visPath.setAttribute('class', 'transfer-arc active');
   visPath.setAttribute('stroke', dvColorHex(data.dv));
   visPath.style.strokeDasharray = '3 2';
@@ -694,7 +691,7 @@ function doStartPlayback() {
   craft.setAttribute('r', '1.2');
   craft.setAttribute('fill', '#fff');
   craft.setAttribute('filter', 'url(#glow)');
-  trG.appendChild(craft);
+  document.getElementById('spacecraft').appendChild(craft);
 
   const PLAYBACK_SECS = 5;
   const startTime = performance.now();
@@ -717,7 +714,7 @@ function doStartPlayback() {
       if (label) { label.setAttribute('x', px); label.setAttribute('y', py - 2.8); }
     });
 
-    const pt = transferPoint(r1, r2, originAngle, destEndAngle, t);
+    const pt = transferPoint(spec.r1, spec.r2, spec.startAngle, spec.endAngle, t);
     craft.setAttribute('cx', pt.x);
     craft.setAttribute('cy', pt.y);
 
@@ -750,32 +747,23 @@ function doMultiHopPlayback(hops) {
     omegas[p.name] = 2 * Math.PI / p.orbital_period_days;
   });
 
-  const r1 = originPlanet.semi_major_axis_au;
-  const rMid = intermediatePlanet.semi_major_axis_au;
-  const r2 = destPlanet.semi_major_axis_au;
-
   const originAngle = startAngles[hop1.originName] || 0;
-  const midStartAngle = startAngles[hop1.destName] || 0;
-  const destStartAngle = startAngles[hop2.destName] || 0;
+  const midAngle = startAngles[hop1.destName] || 0;
+  const destAngle = startAngles[hop2.destName] || 0;
 
-  const waitDays = hop2.waitDaysBeforeHop;
-  const totalDays = hop1.transferDays + waitDays + hop2.transferDays;
-  const frac1 = hop1.transferDays / totalDays;
-  const fracWait = (hop1.transferDays + waitDays) / totalDays;
-
-  // Hop 1 arc endpoints
-  const midArrivalAngle = midStartAngle - omegas[hop1.destName] * hop1.transferDays;
-  // Hop 2 arc endpoints
-  const midDepartAngle = midArrivalAngle - omegas[hop1.destName] * waitDays;
-  const totalElapsed = hop1.transferDays + waitDays;
-  const destEndAngle = destStartAngle - omegas[hop2.destName] * (totalElapsed + hop2.transferDays);
+  const spec = multiHopArcSpec(
+    originPlanet.semi_major_axis_au, intermediatePlanet.semi_major_axis_au, destPlanet.semi_major_axis_au,
+    originAngle, midAngle, destAngle,
+    intermediatePlanet.orbital_period_days, destPlanet.orbital_period_days,
+    hop1.transferDays, hop2.waitDaysBeforeHop, hop2.transferDays
+  );
 
   const trG = document.getElementById('transfers');
   trG.innerHTML = '';
 
   // Arc 1
   const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path1.setAttribute('d', transferArcPathD(r1, rMid, originAngle, midArrivalAngle));
+  path1.setAttribute('d', spec.hop1.pathD);
   path1.setAttribute('class', 'transfer-arc active');
   path1.setAttribute('stroke', dvColorHex(hop1.dv));
   path1.style.strokeDasharray = '3 2';
@@ -783,19 +771,19 @@ function doMultiHopPlayback(hops) {
 
   // Arc 2
   const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path2.setAttribute('d', transferArcPathD(rMid, r2, midDepartAngle, destEndAngle));
+  path2.setAttribute('d', spec.hop2.pathD);
   path2.setAttribute('class', 'transfer-arc active');
   path2.setAttribute('stroke', dvColorHex(hop2.dv));
   path2.style.strokeDasharray = '1.5 1.5';
   path2.style.opacity = '0.7';
   trG.appendChild(path2);
 
-  // Spacecraft
+  // Spacecraft — append to spacecraft group so it renders above planets
   const craft = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   craft.setAttribute('r', '1.2');
   craft.setAttribute('fill', '#fff');
   craft.setAttribute('filter', 'url(#glow)');
-  trG.appendChild(craft);
+  document.getElementById('spacecraft').appendChild(craft);
 
   const PLAYBACK_SECS = 5;
   const startTime = performance.now();
@@ -808,7 +796,7 @@ function doMultiHopPlayback(hops) {
     const plG = document.getElementById('planets');
     state.planets.forEach((p, i) => {
       const r = auToR(p.semi_major_axis_au);
-      const angle = startAngles[p.name] - omegas[p.name] * totalDays * t;
+      const angle = startAngles[p.name] - omegas[p.name] * spec.totalDays * t;
       const px = CX + r * Math.cos(angle);
       const py = CY + r * Math.sin(angle);
       const g = plG.children[i];
@@ -820,24 +808,24 @@ function doMultiHopPlayback(hops) {
     });
 
     // Position spacecraft
-    if (t <= frac1) {
+    if (t <= spec.frac1) {
       // Hop 1: on arc 1
-      const localT = t / frac1;
-      const pt = transferPoint(r1, rMid, originAngle, midArrivalAngle, localT);
+      const localT = t / spec.frac1;
+      const pt = transferPoint(spec.hop1.r1, spec.hop1.r2, spec.hop1.startAngle, spec.hop1.endAngle, localT);
       craft.setAttribute('cx', pt.x);
       craft.setAttribute('cy', pt.y);
-    } else if (t <= fracWait) {
+    } else if (t <= spec.fracWait) {
       // Waiting at intermediate planet — follow its orbit
-      const currentMidAngle = midStartAngle - omegas[hop1.destName] * totalDays * t;
-      const screenRMid = auToR(rMid);
+      const currentMidAngle = midAngle - omegas[hop1.destName] * spec.totalDays * t;
+      const screenRMid = auToR(intermediatePlanet.semi_major_axis_au);
       const px = screenRMid * Math.cos(currentMidAngle);
       const py = screenRMid * Math.sin(currentMidAngle);
       craft.setAttribute('cx', px);
       craft.setAttribute('cy', py);
     } else {
       // Hop 2: on arc 2
-      const localT = (t - fracWait) / (1 - fracWait);
-      const pt = transferPoint(rMid, r2, midDepartAngle, destEndAngle, localT);
+      const localT = (t - spec.fracWait) / (1 - spec.fracWait);
+      const pt = transferPoint(spec.hop2.r1, spec.hop2.r2, spec.hop2.startAngle, spec.hop2.endAngle, localT);
       craft.setAttribute('cx', pt.x);
       craft.setAttribute('cy', pt.y);
     }
@@ -846,7 +834,7 @@ function doMultiHopPlayback(hops) {
       animId = requestAnimationFrame(frame);
     } else {
       animId = null;
-      stopPlaying(state, hop2.destName, totalDays);
+      stopPlaying(state, hop2.destName, spec.totalDays);
       render();
     }
   }
