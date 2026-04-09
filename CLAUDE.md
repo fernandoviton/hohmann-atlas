@@ -6,16 +6,20 @@ Planetary-tour mission planner using real orbital mechanics. Computes Hohmann tr
 
 ```
 hohmann-atlas/
-  backend/          Python package (engine, CLI, API)
+  backend/          Python package (engine, CLI, cache generation)
     app/
       engine/       Orbital mechanics (bodies, hohmann, windows, ephemeris, launch, tour)
       cli.py        Rich CLI
-      api.py        FastAPI REST API
-      models.py     Pydantic response models
-      server.py     Uvicorn entry point
     tests/
   frontend/
     index.html      Single-file UI (no build tools)
+    atlas.js        Pure state/logic (no DOM)
+    orbit.js        Orbit diagram geometry
+    cache.js        Window cache loader + lookup
+    positions.js    JPL mean elements for planet positions
+    tour.js         Client-side tour planner
+    data/           Static JSON (planets.json, windows.json)
+    test-fixtures/  Golden test data from Python engine
 ```
 
 ## Setup
@@ -34,36 +38,46 @@ pip install -e ".[dev]"
 ## Run
 
 - **CLI:** `hohmann-atlas <planet> --date 2026-06-01 [--depth 1]`
-- **Web server:** `hohmann-serve` → http://127.0.0.1:8000
+- **Web UI:** Serve `frontend/` with any static HTTP server (e.g. `python -m http.server -d frontend`)
 - **Tests (backend):** `cd backend && pytest`
-- **Tests (frontend):** `cd frontend && node --test atlas.test.js`
+- **Tests (frontend):** `cd frontend && node --test atlas.test.js orbit.test.js cache.test.js positions.test.js tour.test.js`
 
 ## Architecture
 
 - Python engine uses astropy Quantities for all physics values
-- FastAPI layer serializes Quantities to plain floats for JSON
-- Frontend HTML imports pure logic from `atlas.js` module (no build tools)
-- Frozen dataclasses for engine results, Pydantic models for API responses
+- Frontend is a fully static site — no backend API needed at runtime
+- `cache.js` loads precomputed `windows.json` (launch windows for all planet pairs)
+- `positions.js` computes planet positions using JPL mean orbital elements + Kepler's equation
+- `tour.js` plans multi-hop tours using cached window data
+- Frontend HTML imports pure logic from JS modules (no build tools)
+- Frozen dataclasses for engine results
 
 ## Conventions
 
 - TDD: write tests before implementation
-- All physics values as astropy Quantities internally
+- All physics values as astropy Quantities internally (Python)
 - Frozen dataclasses for engine results
 - Keep `README.md` in sync when adding/changing commands, tests, or setup steps
 
+## Cache Generation
+
+The window cache covers 2025-2200 and is checked into the repo:
+- **Generate batch:** `cd backend && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01`
+- **Merge batches:** `cd backend && python -m app.engine.generate_cache --merge`
+- **Generate planets.json:** `cd backend && python -m app.engine.generate_planets`
+- **Generate test fixtures:** `cd backend && python generate_test_fixtures.py`
+
+Merging also copies `windows.json` to `frontend/data/`.
+
 ## Deployment
 
-- **Backend**: Azure Container Apps (scales to zero). Dockerfile in `backend/`, one-time setup via `infra/setup.sh`.
-- **Frontend**: GitHub Pages. `sed` injects `API_URL` secret at deploy time.
-- **CI/CD**: GitHub Actions — `ci.yml` (pytest on PRs), `deploy-backend.yml`, `deploy-frontend.yml`.
-- **CORS**: `ALLOWED_ORIGINS` env var (comma-separated, default `*` for local dev).
-- **Secrets needed**: `AZURE_CREDENTIALS`, `ACR_NAME`, `API_URL`.
+- **Frontend**: GitHub Pages. Static files served directly.
+- **CI/CD**: GitHub Actions — `ci.yml` (pytest + node --test on PRs), `deploy-frontend.yml`.
 
 ## Learnings
 
-- Frontend `index.html` with inline `<style>` and `<script type="module">` importing from `atlas.js`. No build tools. Favicon is inline (SVG data URI). `atlas.js` contains pure state/logic (no DOM); tested with Node.js built-in test runner.
-- API serialization: engine returns astropy Quantities; `api.py` converts to plain floats with `round(..., 4)` before building Pydantic models.
+- Frontend `index.html` with inline `<style>` and `<script type="module">` importing from JS modules. No build tools. Favicon is inline (SVG data URI).
 - Orbit diagram uses logarithmic scale (`auToR`) so inner planets are visible alongside outer ones.
-- For local dev, FastAPI still serves `index.html` at `/` and CORS defaults to `*`. For production, frontend is on GitHub Pages with `API_BASE` pointing to Azure.
-- `httpx` is a dev dependency (needed by FastAPI's `TestClient`).
+- `positions.js` uses JPL mean orbital elements with Kepler's equation (~1-3 degree accuracy), good enough for visualization.
+- Tour planner uses cache `transfer_time_days` for arrival dates (not Hohmann recomputation), so results match the precomputed cache exactly.
+- `httpx` is no longer a dependency (was needed by FastAPI's `TestClient`).
