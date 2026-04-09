@@ -245,8 +245,9 @@ import {
   singleHopArcSpec, multiHopArcSpec, arrivalAngle,
 } from './orbit.js';
 import { log } from './debug.js';
-
-const API_BASE = window.__API_BASE || '';
+import { ready, getPlanets } from './cache.js';
+import { computePositions } from './positions.js';
+import { planTour } from './tour.js';
 const CX = 0, CY = 0;
 const PLANET_COLORS = {
   Mercury: '#a0a0a0', Venus: '#e8c46a', Earth: '#5e9eff',
@@ -275,7 +276,7 @@ const state = new Proxy(createState(), {
         if (onlySelection) renderSelection();
         else render();
         if ('tourDate' in changed && 'selectedDest' in changed && state.selectedChildIdx == null && state.origin) {
-          fetchTour();
+          refreshTour();
         }
       });
     }
@@ -540,66 +541,25 @@ function renderSelection() {
   document.getElementById('play-btn').classList.toggle('visible', idx >= 0 || childIdx != null);
 }
 
-// ─── Data fetching ───
+// ─── Data loading (local modules, no API) ───
 
-const FETCH_TIMEOUT_MS = 15000;
-
-async function apiFetch(url) {
-  log('fetch', url);
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const resp = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!resp.ok) {
-      log('fetch', 'error', resp.status, url);
-      throw new Error(`HTTP ${resp.status}`);
-    }
-    const data = await resp.json();
-    log('fetch', 'ok', url);
-    return data;
-  } catch (err) {
-    clearTimeout(timer);
-    if (err.name === 'AbortError') {
-      log('fetch', 'timeout', url);
-      throw new Error(`Request timed out: ${url}`);
-    }
-    throw err;
-  }
+function refreshPositions(date) {
+  setPositions(state, computePositions(date));
 }
 
-async function fetchPlanets() {
-  try {
-    setPlanets(state, await apiFetch(API_BASE + '/api/planets'));
-    const sel = document.getElementById('origin-select');
-    sel.innerHTML = '<option value="">— choose —</option>' +
-      state.planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-    const today = new Date().toISOString().slice(0, 10);
-    await fetchPositions(today);
-  } catch (err) {
-    console.error('Failed to load planets:', err);
-    document.getElementById('origin-select').innerHTML =
-      '<option value="">Failed to connect to API</option>';
-  }
-}
-
-async function fetchPositions(date) {
-  setPositions(state, await apiFetch(`${API_BASE}/api/positions?date=${date}`));
-}
-
-async function fetchTour() {
+function refreshTour() {
   if (!state.origin) {
     setTourData(state, null);
     clearSelection(state);
     return;
   }
   try {
-    await fetchPositions(state.tourDate);
-    setTourData(state, await apiFetch(`${API_BASE}/api/tour/${state.origin}?date=${state.tourDate}&depth=${state.tourDepth}`));
+    refreshPositions(state.tourDate);
+    setTourData(state, planTour(state.origin, state.tourDate, state.tourDepth));
   } catch (err) {
-    console.error('Failed to load tour:', err);
+    console.error('Tour error:', err);
     document.getElementById('results').innerHTML =
-      '<tr><td colspan="6" class="loading">API error — check connection</td></tr>';
+      '<tr><td colspan="6" class="loading">No data for this date range</td></tr>';
   }
 }
 
@@ -817,12 +777,12 @@ function validateDate() {
 
 document.getElementById('origin-select').addEventListener('change', e => {
   setOrigin(state, e.target.value);
-  fetchTour();
+  refreshTour();
 });
 
 document.getElementById('date-input').addEventListener('blur', () => {
   setTourDate(state, validateDate());
-  fetchTour();
+  refreshTour();
 });
 
 document.getElementById('date-input').addEventListener('keydown', e => {
@@ -831,7 +791,7 @@ document.getElementById('date-input').addEventListener('keydown', e => {
 
 document.getElementById('depth-select').addEventListener('change', () => {
   setTourDepth(state, parseInt(document.getElementById('depth-select').value));
-  fetchTour();
+  refreshTour();
 });
 
 document.getElementById('play-btn').addEventListener('click', doStartPlayback);
@@ -847,7 +807,20 @@ document.addEventListener('click', e => {
   if (!inside) clearSelection(state);
 });
 
-fetchPlanets();
+// Initialize: load cache + planets, then render
+ready().then(() => {
+  setPlanets(state, getPlanets());
+  const sel = document.getElementById('origin-select');
+  sel.innerHTML = '<option value="">— choose —</option>' +
+    state.planets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  const today = new Date().toISOString().slice(0, 10);
+  refreshPositions(today);
+  render();
+}).catch(err => {
+  console.error('Failed to load data:', err);
+  document.getElementById('origin-select').innerHTML =
+    '<option value="">Failed to load data</option>';
+});
 </script>
 </body>
 </html>
