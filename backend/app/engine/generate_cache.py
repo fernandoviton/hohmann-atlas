@@ -203,6 +203,13 @@ def merge_batches() -> None:
           f"({len(merged_windows)} pairs, {total} windows, "
           f"range {overall_start} to {overall_end})")
 
+    # Also copy to frontend/data/ for static site
+    frontend_output = _DATA_DIR.parent.parent.parent.parent / "frontend" / "data" / "windows.json"
+    if frontend_output.parent.is_dir():
+        import shutil
+        shutil.copy2(output, frontend_output)
+        print(f"Copied to {frontend_output}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate launch window cache")
