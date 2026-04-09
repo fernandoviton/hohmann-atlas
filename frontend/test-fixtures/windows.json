@@ -1,0 +1,74 @@
+[
+  {
+    "origin": "earth",
+    "destination": "mars",
+    "after": "2026-06-01",
+    "expected": {
+      "launch": "2026-12-04",
+      "transfer_time_days": 258.87,
+      "departure_dv_km_s": 2.9448,
+      "arrival_dv_km_s": 2.649,
+      "delta_v_total_km_s": 5.5937
+    }
+  },
+  {
+    "origin": "earth",
+    "destination": "jupiter",
+    "after": "2026-06-01",
+    "expected": {
+      "launch": "2026-10-30",
+      "transfer_time_days": 997.63,
+      "departure_dv_km_s": 8.7931,
+      "arrival_dv_km_s": 5.6432,
+      "delta_v_total_km_s": 14.4363
+    }
+  },
+  {
+    "origin": "mars",
+    "destination": "earth",
+    "after": "2027-01-01",
+    "expected": {
+      "launch": "2028-11-13",
+      "transfer_time_days": 258.87,
+      "departure_dv_km_s": 2.649,
+      "arrival_dv_km_s": 2.9448,
+      "delta_v_total_km_s": 5.5937
+    }
+  },
+  {
+    "origin": "venus",
+    "destination": "saturn",
+    "after": "2030-01-01",
+    "expected": {
+      "launch": "2030-01-18",
+      "transfer_time_days": 2122.12,
+      "departure_dv_km_s": 12.7287,
+      "arrival_dv_km_s": 6.0232,
+      "delta_v_total_km_s": 18.7519
+    }
+  },
+  {
+    "origin": "earth",
+    "destination": "venus",
+    "after": "2026-06-01",
+    "expected": {
+      "launch": "2026-07-28",
+      "transfer_time_days": 146.07,
+      "departure_dv_km_s": 2.4957,
+      "arrival_dv_km_s": 2.707,
+      "delta_v_total_km_s": 5.2027
+    }
+  },
+  {
+    "origin": "jupiter",
+    "destination": "neptune",
+    "after": "2050-01-01",
+    "expected": {
+      "launch": "2050-08-30",
+      "transfer_time_days": 13526.2,
+      "departure_dv_km_s": 3.9921,
+      "arrival_dv_km_s": 2.4813,
+      "delta_v_total_km_s": 6.4734
+    }
+  }
+]

@@ -1,0 +1,113 @@
+[
+  {
+    "date": "2026-06-01",
+    "positions": [
+      {
+        "name": "Mercury",
+        "longitude_rad": 2.711
+      },
+      {
+        "name": "Venus",
+        "longitude_rad": 2.7727
+      },
+      {
+        "name": "Earth",
+        "longitude_rad": 4.3663
+      },
+      {
+        "name": "Mars",
+        "longitude_rad": 0.3112
+      },
+      {
+        "name": "Jupiter",
+        "longitude_rad": 2.1174
+      },
+      {
+        "name": "Saturn",
+        "longitude_rad": 0.116
+      },
+      {
+        "name": "Uranus",
+        "longitude_rad": 1.0691
+      },
+      {
+        "name": "Neptune",
+        "longitude_rad": 0.0333
+      }
+    ]
+  },
+  {
+    "date": "2030-01-01",
+    "positions": [
+      {
+        "name": "Mercury",
+        "longitude_rad": 1.7918
+      },
+      {
+        "name": "Venus",
+        "longitude_rad": 1.6904
+      },
+      {
+        "name": "Earth",
+        "longitude_rad": 1.7485
+      },
+      {
+        "name": "Mars",
+        "longitude_rad": 5.8959
+      },
+      {
+        "name": "Jupiter",
+        "longitude_rad": 3.8774
+      },
+      {
+        "name": "Saturn",
+        "longitude_rad": 0.9229
+      },
+      {
+        "name": "Uranus",
+        "longitude_rad": 1.3329
+      },
+      {
+        "name": "Neptune",
+        "longitude_rad": 0.1718
+      }
+    ]
+  },
+  {
+    "date": "2100-06-15",
+    "positions": [
+      {
+        "name": "Mercury",
+        "longitude_rad": 4.7345
+      },
+      {
+        "name": "Venus",
+        "longitude_rad": 4.9509
+      },
+      {
+        "name": "Earth",
+        "longitude_rad": 4.5841
+      },
+      {
+        "name": "Mars",
+        "longitude_rad": 2.5198
+      },
+      {
+        "name": "Jupiter",
+        "longitude_rad": 3.5269
+      },
+      {
+        "name": "Saturn",
+        "longitude_rad": 3.5596
+      },
+      {
+        "name": "Uranus",
+        "longitude_rad": 0.365
+      },
+      {
+        "name": "Neptune",
+        "longitude_rad": 2.8825
+      }
+    ]
+  }
+]
