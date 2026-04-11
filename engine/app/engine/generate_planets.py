@@ -1,7 +1,7 @@
 """Generate frontend/data/planets.json from bodies.py.
 
 Usage:
-  cd backend && python -m app.engine.generate_planets
+  cd engine && python -m app.engine.generate_planets
 """
 
 import hashlib

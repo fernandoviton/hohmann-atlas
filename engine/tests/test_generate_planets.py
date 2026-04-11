@@ -17,16 +17,16 @@ def _current_hash() -> str:
 def test_generate_planets_hash_current():
     """Fails if bodies.py changed since planets.json was last generated.
 
-    Fix by running: cd backend && python -m app.engine.generate_planets
+    Fix by running: cd engine && python -m app.engine.generate_planets
     """
     if not _HASH_PATH.exists():
         pytest.fail(
             "planets.json has never been generated. "
-            "Run: cd backend && python -m app.engine.generate_planets"
+            "Run: cd engine && python -m app.engine.generate_planets"
         )
     saved = _HASH_PATH.read_text().strip()
     if saved != _current_hash():
         pytest.fail(
             "bodies.py changed since planets.json was last generated. "
-            "Run: cd backend && python -m app.engine.generate_planets"
+            "Run: cd engine && python -m app.engine.generate_planets"
         )

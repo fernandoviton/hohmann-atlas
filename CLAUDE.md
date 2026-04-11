@@ -6,7 +6,7 @@ Planetary-tour mission planner using real orbital mechanics. Computes Hohmann tr
 
 ```
 hohmann-atlas/
-  backend/          Python package (engine, CLI, cache generation)
+  engine/           Python package (orbital engine, CLI, cache generation)
     app/
       engine/       Orbital mechanics (bodies, hohmann, windows, ephemeris, launch, tour)
       cli.py        Rich CLI
@@ -25,7 +25,7 @@ hohmann-atlas/
 ## Setup
 
 ```bash
-cd backend
+cd engine
 python -m venv .venv
 # Linux/macOS:
 source .venv/bin/activate
@@ -39,13 +39,13 @@ pip install -e ".[dev]"
 
 - **CLI:** `hohmann-atlas <planet> --date 2026-06-01 [--depth 1]`
 - **Web UI:** Serve `frontend/` with any static HTTP server (e.g. `python -m http.server -d frontend`)
-- **Tests (backend):** `cd backend && pytest`
+- **Tests (engine):** `cd engine && pytest`
 - **Tests (frontend):** `cd frontend && node --test atlas.test.js orbit.test.js cache.test.js positions.test.js tour.test.js`
 
 ## Architecture
 
 - Python engine uses astropy Quantities for all physics values
-- Frontend is a fully static site — no backend API needed at runtime
+- Frontend is a fully static site — no server needed at runtime
 - `cache.js` loads precomputed `windows.json` (launch windows for all planet pairs)
 - `positions.js` computes planet positions using JPL mean orbital elements + Kepler's equation
 - `tour.js` plans multi-hop tours using cached window data
@@ -62,10 +62,10 @@ pip install -e ".[dev]"
 ## Cache Generation
 
 The window cache covers 2025-2200 and is checked into the repo:
-- **Generate batch:** `cd backend && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01`
-- **Merge batches:** `cd backend && python -m app.engine.generate_cache --merge`
-- **Generate planets.json:** `cd backend && python -m app.engine.generate_planets`
-- **Generate test fixtures:** `cd backend && python generate_test_fixtures.py`
+- **Generate batch:** `cd engine && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01`
+- **Merge batches:** `cd engine && python -m app.engine.generate_cache --merge`
+- **Generate planets.json:** `cd engine && python -m app.engine.generate_planets`
+- **Generate test fixtures:** `cd engine && python generate_test_fixtures.py`
 
 Merging also copies `windows.json` to `frontend/data/`.
 

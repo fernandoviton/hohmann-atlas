@@ -25,7 +25,7 @@ def find_next_window(origin: str, destination: str, after: Time) -> LaunchWindow
     """Find the next Hohmann transfer launch window after a given date.
 
     Looks up the precomputed cache. To regenerate:
-        cd backend && python -m app.engine.generate_cache
+        cd engine && python -m app.engine.generate_cache
     """
     after_iso = after.iso[:10]
     entry = lookup_window(origin, destination, after_iso)
@@ -34,7 +34,7 @@ def find_next_window(origin: str, destination: str, after: Time) -> LaunchWindow
         raise ValueError(
             f"No cached window for {origin}->{destination} after {after_iso}. "
             f"Cache covers {cache_range[0]} to {cache_range[1]}. "
-            "Regenerate with: cd backend && python -m app.engine.generate_cache"
+            "Regenerate with: cd engine && python -m app.engine.generate_cache"
         )
 
     transfer = compute_transfer(origin, destination)

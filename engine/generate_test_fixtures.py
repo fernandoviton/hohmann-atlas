@@ -1,7 +1,7 @@
 """Generate golden test fixtures from the Python engine for JS cross-validation.
 
 Usage:
-  cd backend && python generate_test_fixtures.py
+  cd engine && python generate_test_fixtures.py
 
 Outputs JSON files to frontend/test-fixtures/.
 """

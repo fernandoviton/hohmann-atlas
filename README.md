@@ -7,7 +7,7 @@ Planetary-tour mission planner using real orbital mechanics. Computes Hohmann tr
 ## Install
 
 ```bash
-cd backend
+cd engine
 python -m venv .venv
 
 # Activate the venv
@@ -23,7 +23,7 @@ pip install -e ".[dev]"
 
 ### CLI
 
-Run from the `backend/` directory (with the venv activated):
+Run from the `engine/` directory (with the venv activated):
 
 ```bash
 hohmann-atlas Mars
@@ -45,7 +45,7 @@ Serve the `frontend/` directory with any static HTTP server:
 python -m http.server -d frontend
 ```
 
-Then open http://localhost:8000. The UI loads precomputed data from `frontend/data/` — no backend API needed. Select an origin planet to see animated Hohmann transfer arcs on a solar system diagram, with a color-coded campaign table showing delta-v budgets, transfer times, and launch dates.
+Then open http://localhost:8000. The UI loads precomputed data from `frontend/data/` — no server needed. Select an origin planet to see animated Hohmann transfer arcs on a solar system diagram, with a color-coded campaign table showing delta-v budgets, transfer times, and launch dates.
 
 ## Example Output
 (as of commit bf2d76e)
@@ -68,7 +68,7 @@ Then open http://localhost:8000. The UI loads precomputed data from `frontend/da
 ## Tests
 
 ```bash
-cd backend
+cd engine
 pytest
 
 cd frontend
@@ -85,5 +85,5 @@ Enable in Settings > Pages > Source: **GitHub Actions**.
 
 ### How it works
 
-- **`ci.yml`** — on PRs to `main`, runs `pytest` (backend engine + CLI) and `node --test` (frontend JS modules)
+- **`ci.yml`** — on PRs to `main`, runs `pytest` (engine + CLI) and `node --test` (frontend JS modules)
 - **`deploy-frontend.yml`** — on pushes to `main` touching `frontend/`, deploys to GitHub Pages

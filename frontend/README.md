@@ -47,8 +47,3 @@ Log categories: `proxy`, `render`, `selection`, `event`, `fetch`.
 ```bash
 cd frontend && node --test atlas.test.js
 ```
-
-**E2e tests** (Playwright, requires backend):
-```bash
-cd backend && pytest tests/test_e2e_selection.py -m e2e
-```

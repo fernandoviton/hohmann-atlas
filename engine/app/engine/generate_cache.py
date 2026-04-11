@@ -2,10 +2,10 @@
 
 Usage:
   # Generate a single batch (writes to data/windows_START_END.json):
-  cd backend && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01
+  cd engine && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01
 
   # Merge all batch files into the final cache:
-  cd backend && python -m app.engine.generate_cache --merge
+  cd engine && python -m app.engine.generate_cache --merge
 """
 
 import argparse

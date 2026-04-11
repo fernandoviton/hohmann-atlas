@@ -1,5 +1,5 @@
 // ─── Client-side tour planner ───
-// Port of backend/app/engine/tour.py, using cache data directly.
+// Port of engine/app/engine/tour.py, using cache data directly.
 
 import { lookupWindow, cacheDateRange, getPlanets } from './cache.js';
 
