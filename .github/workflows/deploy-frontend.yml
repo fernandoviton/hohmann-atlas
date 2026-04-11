@@ -23,10 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Inject API URL
-        run: |
-          sed -i "s#window.__API_BASE || ''#window.__API_BASE || '${{ secrets.API_URL }}'#" frontend/index.html
-
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

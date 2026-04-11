@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Mercury",
+    "semi_major_axis_au": 0.3871,
+    "orbital_period_days": 87.9697
+  },
+  {
+    "name": "Venus",
+    "semi_major_axis_au": 0.7233,
+    "orbital_period_days": 224.6861
+  },
+  {
+    "name": "Earth",
+    "semi_major_axis_au": 1.0,
+    "orbital_period_days": 365.2569
+  },
+  {
+    "name": "Mars",
+    "semi_major_axis_au": 1.5237,
+    "orbital_period_days": 686.9856
+  },
+  {
+    "name": "Jupiter",
+    "semi_major_axis_au": 5.2034,
+    "orbital_period_days": 4335.4007
+  },
+  {
+    "name": "Saturn",
+    "semi_major_axis_au": 9.5371,
+    "orbital_period_days": 10757.7868
+  },
+  {
+    "name": "Uranus",
+    "semi_major_axis_au": 19.1913,
+    "orbital_period_days": 30708.2465
+  },
+  {
+    "name": "Neptune",
+    "semi_major_axis_au": 30.069,
+    "orbital_period_days": 60225.0133
+  }
+]

@@ -2,10 +2,10 @@
 
 Usage:
   # Generate a single batch (writes to data/windows_START_END.json):
-  cd backend && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01
+  cd engine && python -m app.engine.generate_cache --start 2025-01-01 --end 2050-01-01
 
   # Merge all batch files into the final cache:
-  cd backend && python -m app.engine.generate_cache --merge
+  cd engine && python -m app.engine.generate_cache --merge
 """
 
 import argparse
@@ -202,6 +202,13 @@ def merge_batches() -> None:
     print(f"Merged {len(batch_files)} batches -> {output} "
           f"({len(merged_windows)} pairs, {total} windows, "
           f"range {overall_start} to {overall_end})")
+
+    # Also copy to frontend/data/ for static site
+    frontend_output = _DATA_DIR.parent.parent.parent.parent / "frontend" / "data" / "windows.json"
+    if frontend_output.parent.is_dir():
+        import shutil
+        shutil.copy2(output, frontend_output)
+        print(f"Copied to {frontend_output}")
 
 
 if __name__ == "__main__":

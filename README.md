@@ -7,7 +7,7 @@ Planetary-tour mission planner using real orbital mechanics. Computes Hohmann tr
 ## Install
 
 ```bash
-cd backend
+cd engine
 python -m venv .venv
 
 # Activate the venv
@@ -23,7 +23,7 @@ pip install -e ".[dev]"
 
 ### CLI
 
-Run from the `backend/` directory (with the venv activated):
+Run from the `engine/` directory (with the venv activated):
 
 ```bash
 hohmann-atlas Mars
@@ -39,11 +39,13 @@ Plans a multi-hop tour using real planetary ephemeris. Shows the next launch win
 
 ### Web UI
 
+Serve the `frontend/` directory with any static HTTP server:
+
 ```bash
-hohmann-serve
+python -m http.server -d frontend
 ```
 
-Opens a web server at http://127.0.0.1:8000 with an interactive orbit visualization. Select an origin planet to see animated Hohmann transfer arcs on a solar system diagram, with a color-coded campaign table showing delta-v budgets, transfer times, and synodic periods.
+Then open http://localhost:8000. The UI loads precomputed data from `frontend/data/` — no server needed. Select an origin planet to see animated Hohmann transfer arcs on a solar system diagram, with a color-coded campaign table showing delta-v budgets, transfer times, and launch dates.
 
 ## Example Output
 (as of commit bf2d76e)
@@ -66,57 +68,16 @@ Opens a web server at http://127.0.0.1:8000 with an interactive orbit visualizat
 ## Tests
 
 ```bash
-cd backend
+cd engine
 pytest
 
 cd frontend
-node --test atlas.test.js
+node --test *.test.js
 ```
 
 ## Deployment
 
-The frontend deploys to GitHub Pages, the backend to Azure Container Apps (scales to zero). CI/CD is handled by GitHub Actions.
-
-### One-time Azure setup
-
-Requires the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) logged in.
-
-```bash
-bash infra/setup.sh
-```
-
-This creates a resource group, container registry, and container app, then prints the API URL.
-
-### GitHub repository secrets
-
-Set these in Settings > Secrets and variables > Actions > **Repository secrets**:
-
-| Secret | Value |
-|---|---|
-| `AZURE_CREDENTIALS` | See below |
-| `ACR_NAME` | Container registry name (e.g. `hohmannatlas`) |
-| `API_URL` | Azure Container App FQDN with `https://` prefix |
-
-To create `AZURE_CREDENTIALS`, run the command printed by `setup.sh` (or see below). The output will have `appId`, `password`, and `tenant` keys — reshape into this format for the secret:
-
-```json
-{
-  "clientId": "<appId>",
-  "clientSecret": "<password>",
-  "tenantId": "<tenant>",
-  "subscriptionId": "<your subscription id>"
-}
-```
-
-> **Git Bash users**: prefix az commands containing `/subscriptions/...` paths with `MSYS_NO_PATHCONV=1` to prevent path mangling.
-
-### CORS
-
-The backend needs to allow requests from your GitHub Pages origin. `setup.sh` sets this automatically, but if you need to update it:
-
-```bash
-MSYS_NO_PATHCONV=1 az containerapp update --name hohmann-atlas-api --resource-group hohmann-atlas-rg --set-env-vars "ALLOWED_ORIGINS=https://<username>.github.io"
-```
+The frontend deploys to GitHub Pages as a fully static site. CI/CD is handled by GitHub Actions.
 
 ### GitHub Pages
 
@@ -124,12 +85,5 @@ Enable in Settings > Pages > Source: **GitHub Actions**.
 
 ### How it works
 
-- **`deploy-backend.yml`** — on pushes to `main` touching `backend/`, runs pytest then builds the Docker image in ACR and updates the container app
-- **`deploy-frontend.yml`** — on pushes to `main` touching `frontend/`, injects the `API_URL` into `index.html` and deploys to GitHub Pages
-
-### Docker (manual)
-
-```bash
-docker build -t hohmann-atlas-api backend
-docker run -p 8000:8000 hohmann-atlas-api
-```
+- **`ci.yml`** — on PRs to `main`, runs `pytest` (engine + CLI) and `node --test` (frontend JS modules)
+- **`deploy-frontend.yml`** — on pushes to `main` touching `frontend/`, deploys to GitHub Pages
