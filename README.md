@@ -72,7 +72,7 @@ cd engine
 pytest
 
 cd frontend
-node --test atlas.test.js orbit.test.js cache.test.js positions.test.js tour.test.js
+node --test *.test.js
 ```
 
 ## Deployment

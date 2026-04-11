@@ -40,7 +40,7 @@ pip install -e ".[dev]"
 - **CLI:** `hohmann-atlas <planet> --date 2026-06-01 [--depth 1]`
 - **Web UI:** Serve `frontend/` with any static HTTP server (e.g. `python -m http.server -d frontend`)
 - **Tests (engine):** `cd engine && pytest`
-- **Tests (frontend):** `cd frontend && node --test atlas.test.js orbit.test.js cache.test.js positions.test.js tour.test.js`
+- **Tests (frontend):** `cd frontend && node --test *.test.js`
 
 ## Architecture
 
